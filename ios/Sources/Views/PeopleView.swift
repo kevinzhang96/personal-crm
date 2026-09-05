@@ -150,9 +150,11 @@ struct PeopleView: View {
             }
     }
 
-    /// One assigned action as its swipe button, named for this row.
+    /// One assigned action as its swipe button, named for this row. Delete
+    /// is red but not a destructive role: that role animates the row away
+    /// before the confirmation, and the row should go only once confirmed.
     private func swipeButton(_ action: SwipeAction, _ friend: Friend) -> some View {
-        Button(role: action.isDestructive ? .destructive : nil) {
+        Button {
             switch action {
             case .log: draft = EntryDraft(friends: [friend], kind: .call)
             case .snooze: snooze(friend, weeks: 2)

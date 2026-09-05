@@ -36,14 +36,15 @@ struct GroupsView: View {
                         }
                         .buttonStyle(.plain)
                         .plainRow()
+                        // Not a destructive role: that animates the row away
+                        // before the question is asked. The row goes when the
+                        // reader has said where its people go.
                         .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) { deleting = group } label: { Label("Delete", systemImage: "trash") }
+                            Button { deleting = group } label: { Label("Delete", systemImage: "trash") }
+                                .tint(.red)
                         }
                     }
                     .onMove(perform: move)
-                    .onDelete { offsets in
-                        if let first = offsets.first { deleting = groups[first] }
-                    }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
@@ -52,7 +53,11 @@ struct GroupsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
-                ToolbarItem(placement: .topBarTrailing) { EditButton() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    // Reorder only: edit mode's own delete would drop rows
+                    // before the confirmation.
+                    EditButton()
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         let group = FriendGroup(name: "", cadenceDays: 30, order: (groups.map(\.order).max() ?? -1) + 1)
