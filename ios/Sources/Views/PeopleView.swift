@@ -29,6 +29,9 @@ struct PeopleView: View {
     @State private var pickingContacts = false
     @State private var picked: [CNContact] = []
     @State private var bulk: BulkAddView.Source?
+    @State private var deleting: Friend?
+    @AppStorage(SwipeAction.leadingKey) private var swipeLeading = SwipeAction.defaultLeading
+    @AppStorage(SwipeAction.trailingKey) private var swipeTrailing = SwipeAction.defaultTrailing
     private let now = Date()
 
     init(initialFilter: Filter = .all) {
@@ -50,17 +53,11 @@ struct PeopleView: View {
                             .background(NavigationLink(value: friend) { EmptyView() }.opacity(0))
                         .id(friend.id)
                         .plainRow()
-                        .swipeActions(edge: .leading) {
-                            Button { draft = EntryDraft(friends: [friend], kind: .call) } label: {
-                                Label("Log", systemImage: "square.and.pencil")
-                            }
-                            .tint(Theme.accent)
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            if let action = SwipeAction.one(swipeLeading) { swipeButton(action, friend) }
                         }
-                        .swipeActions(edge: .trailing) {
-                            Button { snooze(friend, weeks: 2) } label: {
-                                Label("Snooze 2w", systemImage: "zzz")
-                            }
-                            .tint(.indigo)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            if let action = SwipeAction.one(swipeTrailing) { swipeButton(action, friend) }
                         }
                         .contextMenu {
                             Button { draft = EntryDraft(friends: [friend]) } label: { Label("Add note", systemImage: "square.and.pencil") }
@@ -68,6 +65,7 @@ struct PeopleView: View {
                             Button { friend.archived.toggle(); try? context.save() } label: {
                                 Label(friend.archived ? "Unarchive" : "Archive", systemImage: "archivebox")
                             }
+                            Button(role: .destructive) { deleting = friend } label: { Label("Delete", systemImage: "trash") }
                         } preview: {
                             FriendPreview(friend: friend)
                         }
@@ -114,6 +112,20 @@ struct PeopleView: View {
             }
             .sheet(item: $bulk) { source in
                 BulkAddView(source: source).onDisappear { picked = [] }
+            }
+            .confirmationDialog(
+                "Delete \(deleting?.displayName ?? "")? Their facts and reminders go too; entries stay in the log.",
+                isPresented: .init(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    if let friend = deleting {
+                        context.delete(friend)
+                        try? context.save()
+                        Task { await Notifier.reschedule(context: context) }
+                    }
+                    deleting = nil
+                }
             }
         }
     }
@@ -169,6 +181,24 @@ struct PeopleView: View {
         default:
             EmptyPanel(icon: "person.2", title: "Nobody here", hint: "Change a friend's circle from their page.")
         }
+    }
+
+    /// One assigned action as its swipe button, named for this row.
+    private func swipeButton(_ action: SwipeAction, _ friend: Friend) -> some View {
+        Button(role: action.isDestructive ? .destructive : nil) {
+            switch action {
+            case .log: draft = EntryDraft(friends: [friend], kind: .call)
+            case .snooze: snooze(friend, weeks: 2)
+            case .archive:
+                friend.archived.toggle()
+                try? context.save()
+                Task { await Notifier.reschedule(context: context) }
+            case .delete: deleting = friend
+            }
+        } label: {
+            Label(action == .archive && friend.archived ? "Unarchive" : action.label, systemImage: action.icon)
+        }
+        .tint(action.tint)
     }
 
     private func snooze(_ friend: Friend, weeks: Int) {

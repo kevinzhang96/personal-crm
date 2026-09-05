@@ -11,6 +11,8 @@ struct SettingsView: View {
     @AppStorage("appearance") private var appearance = Appearance.dark.rawValue
     @AppStorage(Notifier.digestHourKey) private var digestHour = Notifier.defaultHour
     @AppStorage(Notifier.digestMinuteKey) private var digestMinute = 0
+    @AppStorage(SwipeAction.leadingKey) private var swipeLeading = SwipeAction.defaultLeading
+    @AppStorage(SwipeAction.trailingKey) private var swipeTrailing = SwipeAction.defaultTrailing
     @Query private var friends: [Friend]
     @Query private var entries: [Entry]
     @State private var notifications: UNAuthorizationStatus = .notDetermined
@@ -23,6 +25,7 @@ struct SettingsView: View {
         NavigationStack {
             PanelScroll {
                 appearancePanel
+                swipePanel
                 nudgesPanel
                 suggestionsPanel
                 dataPanel
@@ -69,6 +72,47 @@ struct SettingsView: View {
             }
         }
         .panel()
+    }
+
+    private var swipePanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionLabel("Swipe actions · People")
+            swipeEdge("Swipe right", raw: $swipeLeading)
+            swipeEdge("Swipe left", raw: $swipeTrailing)
+            Text("Each edge carries one action. Tap the chosen one to clear it. Delete always asks first.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .panel()
+    }
+
+    private func swipeEdge(_ label: String, raw: Binding<String>) -> some View {
+        let chosen = SwipeAction.one(raw.wrappedValue)
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            ForEach(SwipeAction.allCases) { action in
+                let on = chosen == action
+                Button {
+                    // One action per edge: choosing is replacing, and
+                    // choosing the current one again leaves the edge bare.
+                    raw.wrappedValue = SwipeAction.store(on ? nil : action)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: on ? "largecircle.fill.circle" : "circle")
+                            .font(.subheadline)
+                            .foregroundStyle(on ? Theme.accent : Color.secondary)
+                        Image(systemName: action.icon)
+                            .font(.caption)
+                            .foregroundStyle(action.tint)
+                        Text(action.label)
+                            .font(.subheadline.weight(on ? .semibold : .regular))
+                        Spacer()
+                    }
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private var nudgesPanel: some View {

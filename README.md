@@ -15,8 +15,9 @@ Everything stays on the phone. Export is a zip of JSON + CSV + audio.
 
 - **Today**: who is overdue (by circle cadence), follow-ups due this week,
   birthdays in the next fortnight, recent entries.
-- **People**: search, circle filters, swipe to log or snooze, long-press
-  preview with facts and last notes. Add one by hand, many from Contacts
+- **People**: search, circle filters, long-press preview with facts and
+  last notes. Each swipe edge carries one action you choose in Settings
+  (log a call, snooze, archive, delete); delete always confirms first. Add one by hand, many from Contacts
   (multi-select picker), or many by pasting a list of names; both bulk
   paths go through a review sheet that sets the circle and tags for the
   batch and skips anyone already added.
