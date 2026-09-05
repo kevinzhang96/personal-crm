@@ -1,0 +1,87 @@
+# The machine that ships Tend is the machine that tests it: the signing
+# certificate and the App Store Connect key live here, so the deploy runs
+# here, on the same self-hosted runner pattern as tcgdb (see
+# deploy/CI_RUNNER_SETUP.md). A push to main is checked — the app compiles
+# for the simulator and its unit tests pass — and only a clean run uploads
+# a TestFlight build. The upload is ios/bin/release.sh, the same command a
+# person runs by hand; this file schedules it and does not reimplement it.
+#
+# Nothing here needs a secret. Signing is in the login keychain and the
+# ASC key in ~/.appstoreconnect, both belonging to the machine.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    # Prose and the pipeline itself ship nothing, so they start nothing.
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+  # The way to deploy without a code change.
+  workflow_dispatch:
+
+# One deploy at a time: two pushes in quick succession must not upload two
+# builds of different commits under one minute's build number.
+concurrency:
+  group: tend-deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: tests
+    runs-on: [self-hosted, macOS]
+    steps:
+      - name: put this machine's tools on PATH
+        # A runner started by launchd inherits a minimal PATH — no xcodegen.
+        run: echo /opt/homebrew/bin >> "$GITHUB_PATH"
+
+      # clean: false keeps DerivedData between runs so builds stay
+      # incremental; tracked files are still force-reset to the commit.
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: iOS compiles and its unit tests pass
+        # The simulator slice, which needs no signing: a gate on the Swift
+        # actually building and Logic/ behaving, before any credential is
+        # touched. The simulator is discovered rather than named — a
+        # hardcoded device name is a CI break waiting on the next Xcode.
+        run: |
+          set -eu
+          cd ios
+          xcodegen generate
+          SIM=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          devices = json.load(sys.stdin)['devices']
+          for runtime in sorted(devices, reverse=True):
+              for device in devices[runtime]:
+                  if device.get('isAvailable') and 'iPhone' in device['name']:
+                      print(device['udid']); raise SystemExit
+          raise SystemExit('no iPhone simulator available')")
+          echo "testing on simulator $SIM"
+          # Redirected rather than piped: a pipeline's status is the last
+          # command's, which is how a failing build reports success.
+          if ! xcodebuild test -project Tend.xcodeproj -scheme Tend \
+                 -destination "id=$SIM" > /tmp/tend-ios-test.log 2>&1; then
+            tail -60 /tmp/tend-ios-test.log
+            exit 1
+          fi
+          # The line itself is the proof; "no tests ran" would also exit 0.
+          grep -E "Test run with [0-9]+ tests in [0-9]+ suites passed" /tmp/tend-ios-test.log | tail -1 \
+            || { echo "no passing test run reported" >&2; tail -40 /tmp/tend-ios-test.log; exit 1; }
+
+  deploy-ios:
+    name: deploy iOS to TestFlight
+    needs: test
+    runs-on: [self-hosted, macOS]
+    steps:
+      - run: echo /opt/homebrew/bin >> "$GITHUB_PATH"
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: archive, sign and upload
+        # release.sh owns all of it: it preflights the ASC key and the
+        # installed profile before spending minutes on an archive, and
+        # prints RELEASE-OK only after altool says the upload succeeded.
+        run: cd ios && ./bin/release.sh
