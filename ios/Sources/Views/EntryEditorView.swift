@@ -113,7 +113,7 @@ struct EntryEditorView: View {
 
     private var kinds: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ChipStrip {
+            ChipStrip(wraps: true) {
                 ForEach(EntryKind.allCases) { k in
                     GlassChip(active: kind == k, action: { kind = k }) {
                         Label(k.label, systemImage: k.icon).font(.subheadline.weight(.semibold))

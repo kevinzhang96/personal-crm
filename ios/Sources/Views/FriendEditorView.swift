@@ -91,7 +91,7 @@ struct FriendEditorView: View {
     private var circle: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionLabel("Circle")
-            ChipStrip {
+            ChipStrip(wraps: true) {
                 ForEach(FriendCircle.allCases) { c in
                     GlassChip(active: friend.circle == c, action: { friend.circle = c }) {
                         VStack(spacing: 1) {

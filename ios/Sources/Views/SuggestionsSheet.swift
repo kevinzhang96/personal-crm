@@ -21,7 +21,7 @@ struct SuggestionsSheet: View {
             PanelScroll {
                 if friends.count > 1 {
                     SectionLabel("About")
-                    ChipStrip {
+                    ChipStrip(wraps: true) {
                         ForEach(friends) { f in
                             GlassChip(active: target?.id == f.id, action: { target = f }) {
                                 Text(f.displayName).font(.subheadline.weight(.semibold))

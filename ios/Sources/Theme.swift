@@ -109,19 +109,62 @@ struct GlassChip<Label: View>: View {
     }
 }
 
-/// A horizontal strip of glass chips. The glass container wraps the
-/// scroll view rather than sitting inside it: glass inside a scroll view
-/// paints its own backdrop as a band across the row.
+/// A strip of glass chips. Never clipped: a clipped glass container
+/// paints its backdrop as a band behind the chips. So inside a panel the
+/// chips wrap into rows, and at screen level they scroll off the edge.
 struct ChipStrip<Content: View>: View {
     var spacing: CGFloat = 8
+    var wraps = false
     @ViewBuilder let content: Content
 
     var body: some View {
         GlassEffectContainer(spacing: spacing) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: spacing) { content }
-                    .padding(.horizontal, 2)
+            if wraps {
+                FlowLayout(spacing: spacing) { content }
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: spacing) { content }
+                        .padding(.horizontal, 2)
+                }
+                .scrollClipDisabled()
             }
+        }
+    }
+}
+
+/// Left to right, wrapping when a row is full.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, row: CGFloat = 0, widest: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += row + spacing
+                row = 0
+            }
+            x += size.width + spacing
+            row = max(row, size.height)
+            widest = max(widest, x - spacing)
+        }
+        return CGSize(width: proposal.width ?? widest, height: y + row)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, row: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += row + spacing
+                row = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: .unspecified)
+            x += size.width + spacing
+            row = max(row, size.height)
         }
     }
 }

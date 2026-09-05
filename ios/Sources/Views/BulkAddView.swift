@@ -152,7 +152,7 @@ struct BulkAddView: View {
     private var batchPanel: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionLabel("Everyone gets")
-            ChipStrip {
+            ChipStrip(wraps: true) {
                 ForEach(FriendCircle.allCases) { c in
                     GlassChip(active: circle == c, action: { circle = c }) {
                         VStack(spacing: 1) {

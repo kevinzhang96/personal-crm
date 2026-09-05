@@ -363,7 +363,7 @@ struct FactEditorView: View {
         NavigationStack {
             PanelScroll {
                 SectionLabel("Label")
-                ChipStrip {
+                ChipStrip(wraps: true) {
                     ForEach(Fact.commonLabels, id: \.self) { l in
                         GlassChip(active: label == l, action: { label = l }) {
                             Text(l).font(.subheadline.weight(.semibold))
