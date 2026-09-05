@@ -89,10 +89,11 @@ extension Friend {
             snoozedUntil: snoozedUntil, createdAt: createdAt, now: now)
     }
 
-    var initials: String {
-        let parts = displayName.split(separator: " ").prefix(2)
-        let letters = parts.compactMap { $0.first }.map(String.init)
-        return letters.joined().uppercased()
+    var initials: String { Self.initials(of: displayName) }
+
+    static func initials(of name: String) -> String {
+        let parts = name.split(separator: " ").prefix(2)
+        return parts.compactMap { $0.first }.map(String.init).joined().uppercased()
     }
 
     var birthday: ImportantDate? {

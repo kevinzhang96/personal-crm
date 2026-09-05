@@ -91,20 +91,15 @@ struct FriendEditorView: View {
     private var circle: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionLabel("Circle")
-            ScrollView(.horizontal, showsIndicators: false) {
-                GlassEffectContainer(spacing: 8) {
-                    HStack(spacing: 8) {
-                        ForEach(FriendCircle.allCases) { c in
-                            GlassChip(active: friend.circle == c, action: { friend.circle = c }) {
-                                VStack(spacing: 1) {
-                                    Text(c.label).font(.subheadline.weight(.semibold))
-                                    Text(c.defaultCadenceDays.map { "\($0)d" } ?? "—")
-                                        .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
-                                }
-                            }
+            ChipStrip {
+                ForEach(FriendCircle.allCases) { c in
+                    GlassChip(active: friend.circle == c, action: { friend.circle = c }) {
+                        VStack(spacing: 1) {
+                            Text(c.label).font(.subheadline.weight(.semibold))
+                            Text(c.defaultCadenceDays.map { "\($0)d" } ?? "—")
+                                .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
                         }
                     }
-                    .padding(.horizontal, 2)
                 }
             }
             Toggle("Custom cadence", isOn: $customCadence.animation())

@@ -21,16 +21,11 @@ struct SuggestionsSheet: View {
             PanelScroll {
                 if friends.count > 1 {
                     SectionLabel("About")
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        GlassEffectContainer(spacing: 8) {
-                            HStack(spacing: 8) {
-                                ForEach(friends) { f in
-                                    GlassChip(active: target?.id == f.id, action: { target = f }) {
-                                        Text(f.displayName).font(.subheadline.weight(.semibold))
-                                    }
-                                }
+                    ChipStrip {
+                        ForEach(friends) { f in
+                            GlassChip(active: target?.id == f.id, action: { target = f }) {
+                                Text(f.displayName).font(.subheadline.weight(.semibold))
                             }
-                            .padding(.horizontal, 2)
                         }
                     }
                 }

@@ -29,7 +29,53 @@ struct ContactPicker: UIViewControllerRepresentable {
     }
 }
 
+/// The same picker, in the mode where the delegate takes a list: that is
+/// what makes CNContactPickerViewController offer multi-select. A
+/// separate type rather than a flag, because the mode is decided by
+/// which delegate method exists, not by what it does.
+struct ContactsMultiPicker: UIViewControllerRepresentable {
+    let onPick: ([CNContact]) -> Void
+
+    func makeUIViewController(context: Context) -> CNContactPickerViewController {
+        let picker = CNContactPickerViewController()
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: CNContactPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
+
+    final class Coordinator: NSObject, CNContactPickerDelegate {
+        let onPick: ([CNContact]) -> Void
+        init(onPick: @escaping ([CNContact]) -> Void) { self.onPick = onPick }
+
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect contacts: [CNContact]) {
+            onPick(contacts)
+        }
+    }
+}
+
 enum ContactsService {
+    /// What to call someone the picker handed over: their name, failing
+    /// that their company, failing that how to reach them.
+    static func displayName(_ contact: CNContact) -> String {
+        if contact.isKeyAvailable(CNContactGivenNameKey), contact.isKeyAvailable(CNContactFamilyNameKey),
+           let full = CNContactFormatter.string(from: contact, style: .fullName), !full.isEmpty {
+            return full
+        }
+        if contact.isKeyAvailable(CNContactOrganizationNameKey), !contact.organizationName.isEmpty {
+            return contact.organizationName
+        }
+        if contact.isKeyAvailable(CNContactPhoneNumbersKey), let phone = contact.phoneNumbers.first {
+            return phone.value.stringValue
+        }
+        if contact.isKeyAvailable(CNContactEmailAddressesKey), let email = contact.emailAddresses.first {
+            return email.value as String
+        }
+        return ""
+    }
+
     static let keys: [CNKeyDescriptor] = [
         CNContactFormatter.descriptorForRequiredKeys(for: .fullName),
         CNContactGivenNameKey as CNKeyDescriptor,

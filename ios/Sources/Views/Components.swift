@@ -8,15 +8,27 @@ struct Avatar: View {
     var size: CGFloat = 44
 
     var body: some View {
+        PhotoCircle(photo: friend.photo, initials: friend.initials, size: size)
+    }
+}
+
+/// A photo when there is one, initials on the accent otherwise — for a
+/// friend, or for someone about to become one.
+struct PhotoCircle: View {
+    let photo: Data?
+    let initials: String
+    var size: CGFloat = 44
+
+    var body: some View {
         Group {
-            if let data = friend.photo, let image = UIImage(data: data) {
+            if let photo, let image = UIImage(data: photo) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
             } else {
                 LinearGradient(colors: [Theme.accent, Theme.accent.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing)
                     .overlay(
-                        Text(friend.initials.isEmpty ? "?" : friend.initials)
+                        Text(initials.isEmpty ? "?" : initials)
                             .font(.system(size: size * 0.38, weight: .bold))
                             .foregroundStyle(.white)
                     )

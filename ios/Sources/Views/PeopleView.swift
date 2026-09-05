@@ -1,6 +1,7 @@
 // Everyone, searchable, with the circles as filter chips. The "attention"
 // chip is the working view: who to reach out to, most overdue first.
 
+import Contacts
 import SwiftData
 import SwiftUI
 
@@ -25,6 +26,9 @@ struct PeopleView: View {
     @State private var search = ""
     @State private var newFriend: Friend?
     @State private var draft: EntryDraft?
+    @State private var pickingContacts = false
+    @State private var picked: [CNContact] = []
+    @State private var bulk: BulkAddView.Source?
     private let now = Date()
 
     init(initialFilter: Filter = .all) {
@@ -77,38 +81,57 @@ struct PeopleView: View {
             .searchable(text: $search, prompt: "Names, tags, places…")
             .navigationDestination(for: Friend.self) { FriendDetailView(friend: $0) }
             .overlay(alignment: .bottomTrailing) {
-                GlassCircle(icon: "person.badge.plus", tint: Theme.accent) {
-                    let friend = Friend()
-                    context.insert(friend)
-                    newFriend = friend
+                Menu {
+                    Button {
+                        let friend = Friend()
+                        context.insert(friend)
+                        newFriend = friend
+                    } label: { Label("New friend", systemImage: "person.badge.plus") }
+                    Button { pickingContacts = true } label: { Label("From Contacts", systemImage: "person.crop.circle.badge.plus") }
+                    Button { bulk = .names } label: { Label("Paste names", systemImage: "text.badge.plus") }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 46, height: 46)
                 }
+                .glassEffect(.regular.tint(Theme.accent).interactive(), in: .circle)
                 .padding(.trailing, 18)
                 .padding(.bottom, 18)
             }
             .sheet(item: $newFriend) { FriendEditorView(friend: $0, isNew: true) }
             .sheet(item: $draft) { EntryEditorView(draft: $0) }
+            // The picker's own dismissal has to finish before the review
+            // sheet can be presented, so the hand-off rides onDismiss.
+            .sheet(isPresented: $pickingContacts, onDismiss: {
+                if !picked.isEmpty { bulk = .contacts(picked) }
+            }) {
+                ContactsMultiPicker { contacts in
+                    picked = contacts
+                    pickingContacts = false
+                }
+                .ignoresSafeArea()
+            }
+            .sheet(item: $bulk) { source in
+                BulkAddView(source: source).onDisappear { picked = [] }
+            }
         }
     }
 
     private var chips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    ForEach(Filter.allCases) { f in
-                        let count = self.count(f)
-                        if f != .archived || count > 0 {
-                            GlassChip(active: filter == f, action: { filter = f }) {
-                                HStack(spacing: 5) {
-                                    Text(f.label).font(.subheadline.weight(.semibold))
-                                    if count > 0 {
-                                        Text("\(count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                                    }
-                                }
+        ChipStrip {
+            ForEach(Filter.allCases) { f in
+                let count = self.count(f)
+                if f != .archived || count > 0 {
+                    GlassChip(active: filter == f, action: { filter = f }) {
+                        HStack(spacing: 5) {
+                            Text(f.label).font(.subheadline.weight(.semibold))
+                            if count > 0 {
+                                Text("\(count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                             }
                         }
                     }
                 }
-                .padding(.horizontal, 2)
             }
         }
     }

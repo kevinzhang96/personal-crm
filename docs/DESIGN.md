@@ -225,6 +225,21 @@ name, photo, phones, emails, birthday, social profiles and IM addresses
 into Friend and ContactMethods. "Refresh from Contacts" re-pulls those
 fields; nothing is written back to Contacts.
 
+### Bulk add
+
+The People "+" is a menu: one friend by hand, many from Contacts, or many
+from a pasted list. The contact picker runs in multi-select mode (which
+`CNContactPickerViewController` turns on when the delegate implements
+the list-taking method, so it is a separate representable). Pasted text
+is one name per line — or one line split on commas or semicolons — with
+list numbering and bullets stripped (`Logic/BulkNames.swift`, tested).
+Both paths land in one review sheet: a circle and tags for the whole
+batch, one row per person, and anyone already present (same contact
+identifier, or same name for pasted lists) shown as "added" and left out.
+Contacts access is requested once per batch so full records can be
+fetched; without it the picker's copies are applied, which still carry a
+name and numbers.
+
 ## 5. Backup and export
 
 Export writes a folder and zips it (via `NSFileCoordinator`'s

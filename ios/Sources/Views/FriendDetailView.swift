@@ -116,14 +116,9 @@ struct FriendDetailView: View {
                     .font(.footnote.weight(.semibold))
             }
         } else {
-            ScrollView(.horizontal, showsIndicators: false) {
-                GlassEffectContainer(spacing: 10) {
-                    HStack(spacing: 10) {
-                        ForEach(methods) { method in
-                            MethodButton(method: method, friendId: friend.id)
-                        }
-                    }
-                    .padding(.horizontal, 2)
+            ChipStrip(spacing: 10) {
+                ForEach(methods) { method in
+                    MethodButton(method: method, friendId: friend.id)
                 }
             }
         }
@@ -368,16 +363,11 @@ struct FactEditorView: View {
         NavigationStack {
             PanelScroll {
                 SectionLabel("Label")
-                ScrollView(.horizontal, showsIndicators: false) {
-                    GlassEffectContainer(spacing: 8) {
-                        HStack(spacing: 8) {
-                            ForEach(Fact.commonLabels, id: \.self) { l in
-                                GlassChip(active: label == l, action: { label = l }) {
-                                    Text(l).font(.subheadline.weight(.semibold))
-                                }
-                            }
+                ChipStrip {
+                    ForEach(Fact.commonLabels, id: \.self) { l in
+                        GlassChip(active: label == l, action: { label = l }) {
+                            Text(l).font(.subheadline.weight(.semibold))
                         }
-                        .padding(.horizontal, 2)
                     }
                 }
                 TextField("Or your own label", text: $label).textFieldStyle(.roundedBorder)

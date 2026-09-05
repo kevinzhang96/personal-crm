@@ -109,6 +109,23 @@ struct GlassChip<Label: View>: View {
     }
 }
 
+/// A horizontal strip of glass chips. The glass container wraps the
+/// scroll view rather than sitting inside it: glass inside a scroll view
+/// paints its own backdrop as a band across the row.
+struct ChipStrip<Content: View>: View {
+    var spacing: CGFloat = 8
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        GlassEffectContainer(spacing: spacing) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: spacing) { content }
+                    .padding(.horizontal, 2)
+            }
+        }
+    }
+}
+
 /// A floating glass circle — the 2–3 global actions of a screen, placed
 /// by overlay so they survive search-bar collapse.
 struct GlassCircle: View {
@@ -120,6 +137,7 @@ struct GlassCircle: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.title3.weight(.semibold))
+                .foregroundStyle(tint == nil ? AnyShapeStyle(.primary) : AnyShapeStyle(.white))
                 .frame(width: 46, height: 46)
         }
         .buttonStyle(.plain)

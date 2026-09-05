@@ -113,16 +113,11 @@ struct EntryEditorView: View {
 
     private var kinds: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                GlassEffectContainer(spacing: 8) {
-                    HStack(spacing: 8) {
-                        ForEach(EntryKind.allCases) { k in
-                            GlassChip(active: kind == k, action: { kind = k }) {
-                                Label(k.label, systemImage: k.icon).font(.subheadline.weight(.semibold))
-                            }
-                        }
+            ChipStrip {
+                ForEach(EntryKind.allCases) { k in
+                    GlassChip(active: kind == k, action: { kind = k }) {
+                        Label(k.label, systemImage: k.icon).font(.subheadline.weight(.semibold))
                     }
-                    .padding(.horizontal, 2)
                 }
             }
             HStack {
