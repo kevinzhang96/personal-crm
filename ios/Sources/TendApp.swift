@@ -17,6 +17,7 @@ struct TendApp: App {
             fatalError("Could not open the store: \(error)")
         }
         UNUserNotificationCenter.current().delegate = notificationDelegate
+        SyncMonitor.shared.start()
         // The refresh identifier has to be claimed before launch finishes,
         // so it is claimed here rather than in a view.
         BackgroundRefresh.register(container: container)

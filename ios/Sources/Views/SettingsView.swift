@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State private var showGroups = false
     @State private var notifications: UNAuthorizationStatus = .notDetermined
     @State private var icloudAccount: CKAccountStatus?
+    @State private var sync = SyncMonitor.shared
     @State private var exportURL: URL?
     @State private var exporting = false
     @State private var importing = false
@@ -92,6 +93,15 @@ struct SettingsView: View {
                 Badge(icloudLine.badge, tint: icloudLine.tint)
             }
             Text(icloudLine.text).font(.caption2).foregroundStyle(.tertiary)
+            if Store.mode == .cloud, icloudAccount == .available {
+                if let error = sync.lastError {
+                    Text("Sync error: \(error)").font(.caption).foregroundStyle(Theme.warn)
+                } else if let at = sync.lastSuccess {
+                    Text("Last synced \(Dates.since(at, now: Date()))").font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("No sync yet this session.").font(.caption).foregroundStyle(.secondary)
+                }
+            }
         }
         .panel()
     }
