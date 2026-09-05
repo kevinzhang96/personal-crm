@@ -15,12 +15,14 @@ Everything stays on the phone. Export is a zip of JSON + CSV + audio.
 
 - **Today**: who is overdue (by circle cadence), follow-ups due this week,
   birthdays in the next fortnight, recent entries.
-- **People**: search, one filter chip per group, long-press preview with
-  facts and last notes. Each swipe edge carries one action you choose in
-  Settings (log a call, snooze, archive, delete); delete always confirms
+- **People**: search, one filter chip per group plus ★ for starred people,
+  long-press preview with facts and last notes. Each swipe edge carries
+  one action you choose in Settings (select, log a call, star, snooze,
+  archive, delete); out of the box a right swipe starts a selection with
+  that person ticked and a left swipe snoozes; delete always confirms
   first. Select turns the list into a checklist: add the ticked people to
   groups or take them out, star them, archive them, or delete them.
-  Starred people sort first and have their own ★ filter.
+  Starred people sort first.
 - **Groups**: your own, with a cadence each (the five built-in circles are
   the starting set). A friend can be in several; the tightest cadence
   among them applies. Make, rename, re-pace, reorder and delete groups
