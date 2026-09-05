@@ -1,0 +1,60 @@
+# XcodeGen spec — run `xcodegen generate` in this directory to (re)create
+# Tend.xcodeproj. The project file is generated, never hand-edited.
+name: Tend
+options:
+  bundleIdPrefix: com.kevinzhang
+  deploymentTarget:
+    iOS: "26.0"
+targets:
+  Tend:
+    type: application
+    platform: iOS
+    sources: [Sources, Assets.xcassets]
+    # Keys with no INFOPLIST_KEY_ build setting. BGTaskScheduler needs the
+    # capability and the allow-list it checks at register() time.
+    info:
+      path: Info.plist
+      properties:
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [com.kevinzhang.tend.refresh]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kevinzhang.tend
+        # Manual, account-free signing, as in tcgdb: cert + profile created
+        # via the ASC API (bin/provision.sh). Simulator builds ignore these.
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: XF283F7SB6
+        CODE_SIGN_IDENTITY[sdk=iphoneos*]: "iPhone Distribution: Kevin Zhang (XF283F7SB6)"
+        PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]: tend-appstore
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        # No networking at all -> standard encryption exemption; skips the
+        # export compliance question on every TestFlight upload.
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        # Each prompt says what stays on the device, which is the half of
+        # the sentence a reader deciding whether to allow it cares about.
+        INFOPLIST_KEY_NSContactsUsageDescription: "Link friends to your contacts to fill in names, photos and ways to reach them. Nothing is written back."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Record voice notes about conversations. Recordings stay on your phone."
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Turn voice notes into text. Recognition runs on your device when it can."
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: 1
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.0
+        SWIFT_VERSION: 5
+  # Tests cover the pure layer only (Logic/): cadence, digest, suggestions,
+  # links, backup. The shell is verified by building and running.
+  TendTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: Tend
+    settings:
+      base:
+        # A unit-test bundle is signed for the simulator only; the app's
+        # manual App Store identity would refuse to sign it.
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGNING_ALLOWED: NO
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: 5
