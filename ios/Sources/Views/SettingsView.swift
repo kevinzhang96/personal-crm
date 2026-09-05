@@ -122,13 +122,16 @@ struct SettingsView: View {
                     // choosing the current one again leaves the edge bare.
                     raw.wrappedValue = SwipeAction.store(on ? nil : action)
                 } label: {
+                    // Glyphs differ in width; fixed frames keep the labels in a column.
                     HStack(spacing: 8) {
                         Image(systemName: on ? "largecircle.fill.circle" : "circle")
                             .font(.subheadline)
                             .foregroundStyle(on ? Theme.accent : Color.secondary)
+                            .frame(width: 20)
                         Image(systemName: action.icon)
                             .font(.caption)
                             .foregroundStyle(action.tint)
+                            .frame(width: 22)
                         Text(action.label)
                             .font(.subheadline.weight(on ? .semibold : .regular))
                         Spacer()

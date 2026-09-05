@@ -188,9 +188,12 @@ group is kept by `Services/Groups.swift`: it seeds, migrates the single
 group of the first groups build into a membership, and re-homes any
 friend without one (a pre-groups install, by the circle it kept; a
 deleted group's sole members, by the destination chosen at deletion).
-The People list filters by one group at a time through a dropdown chip
-(a strip of chips stopped fitting past a handful of groups) that names
-the group shown, lists them all with counts, and opens the manager.
+The People list filters by one group at a time through a chip that
+names the group shown and opens a picker sheet (a strip of chips stopped
+fitting past a handful of groups, and a system menu wrapped their names)
+with full-width rows, counts, a search field once there are many, and
+the manager. Tags filter the same way. The list itself is a list or a
+grid of faces, five across on a phone, remembered per device.
 Bulk membership changes happen from the People list's Select mode — one
 menu entry per group, ticked when everyone chosen is in it, tapping adds
 the rest or removes them all; the group manager lives in Settings and

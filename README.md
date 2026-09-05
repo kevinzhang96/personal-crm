@@ -18,9 +18,11 @@ Everything stays on the phone. Export is a zip of JSON + CSV + audio.
 - **People**: search that understands people — words match names, tags,
   places, groups, facts and notes; `#tag`, `lives:LIC`, `works:Figma`,
   `partner:`, `met:college`, `note:skiing` narrow, and terms combine.
-  Chips for All, ★ starred and Reach out, a dropdown for groups and one
-  for tags; long-press for a preview, every way to reach them, and the
-  quick actions. Each swipe edge carries
+  Chips for All, ★ starred and Reach out, and pickers for group and tag
+  that open as sheets. List or tile view (five faces across), remembered.
+  Long-press for a preview and the quick actions; swipe left for every
+  way to contact them, swipe right to start selecting — both edges are
+  yours to reassign in Settings. Each swipe edge carries
   one action you choose in Settings (select, log a call, star, snooze,
   archive, delete); out of the box a right swipe starts a selection with
   that person ticked and a left swipe snoozes; delete always confirms

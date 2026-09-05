@@ -18,10 +18,10 @@ struct SwipeActionTests {
         #expect(SwipeAction.one("teleport") == nil)
     }
 
-    @Test("out of the box, right selects and left snoozes, and only delete is destructive")
+    @Test("out of the box, right selects and left contacts, and only delete is destructive")
     func defaults() {
         #expect(SwipeAction.one(SwipeAction.defaultLeading) == .select)
-        #expect(SwipeAction.one(SwipeAction.defaultTrailing) == .snooze)
+        #expect(SwipeAction.one(SwipeAction.defaultTrailing) == .reach)
         #expect(SwipeAction.allCases.filter(\.isDestructive) == [.delete])
         #expect(SwipeAction.allCases.contains(.star))
     }

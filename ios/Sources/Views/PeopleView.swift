@@ -30,6 +30,14 @@ struct PeopleView: View {
     @State private var selectedTag: String?
     @State private var tagPrompt = false
     @State private var newTag = ""
+    @State private var reaching: Friend?
+    @State private var pickingGroup = false
+    @State private var pickingTag = false
+    @State private var openManagerAfterPick = false
+    @AppStorage("peopleLayout") private var layoutRaw = Layout.list.rawValue
+
+    enum Layout: String { case list, grid }
+    private var layout: Layout { Layout(rawValue: layoutRaw) ?? .list }
     @AppStorage(SwipeAction.leadingKey) private var swipeLeading = SwipeAction.defaultLeading
     @AppStorage(SwipeAction.trailingKey) private var swipeTrailing = SwipeAction.defaultTrailing
     private let now = Date()
@@ -52,18 +60,22 @@ struct PeopleView: View {
                     chips
                         .padding(.horizontal, 16)
                         .padding(.vertical, 6)
-                    List(selection: $selected) {
-                        if shown.isEmpty {
-                            empty.plainRow()
+                    if layout == .grid {
+                        grid
+                    } else {
+                        List(selection: $selected) {
+                            if shown.isEmpty {
+                                empty.plainRow()
+                            }
+                            ForEach(shown) { friend in
+                                row(friend)
+                            }
                         }
-                        ForEach(shown) { friend in
-                            row(friend)
-                        }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
+                        .contentMargins(.bottom, 90, for: .scrollContent)
+                        .environment(\.editMode, .constant(selecting ? .active : .inactive))
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
-                    .contentMargins(.bottom, 90, for: .scrollContent)
-                    .environment(\.editMode, .constant(selecting ? .active : .inactive))
                 }
             }
             .navigationTitle("People")
@@ -72,6 +84,13 @@ struct PeopleView: View {
             .autocorrectionDisabled()
             .navigationDestination(for: Friend.self) { FriendDetailView(friend: $0) }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        layoutRaw = (layout == .grid ? Layout.list : .grid).rawValue
+                    } label: {
+                        Image(systemName: layout == .grid ? "list.bullet" : "square.grid.3x3")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(selecting ? "Done" : "Select") {
                         selecting.toggle()
@@ -79,6 +98,27 @@ struct PeopleView: View {
                     }
                     .disabled(friends.isEmpty)
                 }
+            }
+            .sheet(isPresented: $pickingGroup, onDismiss: {
+                if openManagerAfterPick {
+                    openManagerAfterPick = false
+                    showGroups = true
+                }
+            }) {
+                PickSheet(
+                    title: "Group", icon: "folder",
+                    items: groups.map { .init(id: $0.id.uuidString, name: $0.name, count: count(.group($0.id))) },
+                    selectedId: currentGroup?.id.uuidString, anyLabel: "All groups",
+                    onPick: { id in filter = id.flatMap(UUID.init).map(Filter.group) ?? .all },
+                    onManage: { openManagerAfterPick = true })
+            }
+            .sheet(item: $reaching) { ReachSheet(friend: $0) }
+            .sheet(isPresented: $pickingTag) {
+                PickSheet(
+                    title: "Tag", icon: "number",
+                    items: allTags.map { .init(id: $0.tag, name: "#\($0.tag)", count: $0.count) },
+                    selectedId: selectedTag, anyLabel: "Any tag",
+                    onPick: { selectedTag = $0 })
             }
             .safeAreaInset(edge: .bottom) {
                 if selecting { bulkBar }
@@ -157,28 +197,17 @@ struct PeopleView: View {
                 if let action = SwipeAction.one(swipeTrailing) { swipeButton(action, friend) }
             }
             .contextMenu {
+                actions(for: friend)
+            } preview: {
+                FriendPreview(friend: friend)
+            }
+    }
+
+    /// The quick actions a row and a tile share.
+    @ViewBuilder
+    private func actions(for friend: Friend) -> some View {
                 Button { draft = EntryDraft(friends: [friend]) } label: { Label("Add note", systemImage: "square.and.pencil") }
-                if !friend.sortedMethods.isEmpty {
-                    // Every way to reach them, from the list: a number fans
-                    // out into its channels, everything else opens itself.
-                    Menu {
-                        ForEach(friend.sortedMethods) { method in
-                            if method.kind == .phone {
-                                ForEach([ContactKind.phone, .sms, .facetime, .whatsapp], id: \.self) { channel in
-                                    if let url = ContactLinks.url(kind: channel, value: method.value) {
-                                        Button { PendingContact.open(url, kind: channel, friendId: friend.id) } label: {
-                                            Label(method.label.isEmpty ? channel.label : "\(channel.label) · \(method.label)", systemImage: channel.icon)
-                                        }
-                                    }
-                                }
-                            } else if let url = method.url {
-                                Button { PendingContact.open(url, kind: method.kind, friendId: friend.id) } label: {
-                                    Label(method.kind.label, systemImage: method.kind.icon)
-                                }
-                            }
-                        }
-                    } label: { Label("Reach", systemImage: "phone.arrow.up.right") }
-                }
+                Button { reaching = friend } label: { Label("Contact", systemImage: "phone.arrow.up.right") }
                 Button { star([friend], !friend.starred) } label: {
                     Label(friend.starred ? "Unstar" : "Star", systemImage: friend.starred ? "star.slash" : "star")
                 }
@@ -194,9 +223,79 @@ struct PeopleView: View {
                     Label(friend.archived ? "Unarchive" : "Archive", systemImage: "archivebox")
                 }
                 Button(role: .destructive) { deleting = friend } label: { Label("Delete", systemImage: "trash") }
-            } preview: {
-                FriendPreview(friend: friend)
+    }
+
+    // MARK: tiles
+
+    /// Faces, five or so across: the same people, scanned rather than read.
+    private var grid: some View {
+        ScrollView {
+            if shown.isEmpty {
+                empty.padding(.top, 8)
             }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 64, maximum: 96), spacing: 10)], spacing: 14) {
+                ForEach(shown) { friend in
+                    tile(friend)
+                        .id(friend.id)
+                        .contextMenu {
+                            actions(for: friend)
+                        } preview: {
+                            FriendPreview(friend: friend)
+                        }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 100)
+        }
+    }
+
+    @ViewBuilder
+    private func tile(_ friend: Friend) -> some View {
+        let on = selected.contains(friend.id)
+        if selecting {
+            Button {
+                if on { selected.remove(friend.id) } else { selected.insert(friend.id) }
+            } label: { tileFace(friend, selected: on) }
+            .buttonStyle(.plain)
+        } else {
+            NavigationLink(value: friend) { tileFace(friend, selected: false) }
+                .buttonStyle(.plain)
+        }
+    }
+
+    private func tileFace(_ friend: Friend, selected on: Bool) -> some View {
+        let status = friend.status(now: now)
+        return VStack(spacing: 5) {
+            ZStack(alignment: .bottomTrailing) {
+                Avatar(friend: friend, size: 60)
+                    .overlay(Circle().strokeBorder(on ? Theme.accent : .clear, lineWidth: 3))
+                if status.needsAttention {
+                    Circle()
+                        .fill(Theme.tint(for: status))
+                        .frame(width: 12, height: 12)
+                        .overlay(Circle().strokeBorder(Theme.bgTop, lineWidth: 2))
+                }
+                if on {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.white, Theme.accent)
+                        .offset(x: 4, y: 4)
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if friend.starred {
+                    Image(systemName: "star.fill").font(.caption2).foregroundStyle(.yellow).offset(x: 2, y: -2)
+                }
+            }
+            Text(friend.givenName.isEmpty ? friend.displayName : friend.givenName)
+                .font(.caption2.weight(.medium))
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+        }
+        .contentShape(Rectangle())
+        .opacity(friend.archived ? 0.6 : 1)
     }
 
     /// One assigned action as its swipe button, named for this row. Delete
@@ -208,6 +307,7 @@ struct PeopleView: View {
             case .select:
                 selected = [friend.id]
                 selecting = true
+            case .reach: reaching = friend
             case .log: draft = EntryDraft(friends: [friend], kind: .call)
             case .star: star([friend], !friend.starred)
             case .snooze: snooze(friend, weeks: 2)
@@ -249,19 +349,9 @@ struct PeopleView: View {
     /// Tags narrow whatever else is showing, so they are a filter of
     /// their own rather than one of the chips.
     private var tagMenu: some View {
-        Menu {
-            ForEach(allTags, id: \.tag) { entry in
-                Button { selectedTag = entry.tag } label: {
-                    Label("#\(entry.tag)  ·  \(entry.count)", systemImage: selectedTag == entry.tag ? "checkmark" : "number")
-                }
-            }
-            if selectedTag != nil {
-                Divider()
-                Button { selectedTag = nil } label: { Label("Any tag", systemImage: "xmark.circle") }
-            }
-        } label: {
+        Button { pickingTag = true } label: {
             HStack(spacing: 5) {
-                Text(selectedTag.map { "#\($0)" } ?? "Tag").font(.subheadline.weight(.semibold))
+                Text(selectedTag.map { "#\($0)" } ?? "Tag").font(.subheadline.weight(.semibold)).lineLimit(1)
                 Image(systemName: "chevron.down").font(.caption2.weight(.bold))
             }
             .foregroundStyle(selectedTag != nil ? Color.white : Color.primary)
@@ -271,20 +361,12 @@ struct PeopleView: View {
     }
 
     /// One chip for all the groups: a strip of them stopped fitting once
-    /// there were more than a few. Names the group being shown, or
-    /// offers them.
+    /// there were more than a few, and a menu wrapped their names. Names
+    /// the group being shown and opens the chooser.
     private var groupMenu: some View {
-        Menu {
-            ForEach(groups) { g in
-                Button { filter = .group(g.id) } label: {
-                    Label("\(g.name)  ·  \(count(.group(g.id)))", systemImage: currentGroup?.id == g.id ? "checkmark" : "folder")
-                }
-            }
-            Divider()
-            Button { showGroups = true } label: { Label("Manage groups…", systemImage: "slider.horizontal.3") }
-        } label: {
+        Button { pickingGroup = true } label: {
             HStack(spacing: 5) {
-                Text(currentGroup?.name ?? "Group").font(.subheadline.weight(.semibold))
+                Text(currentGroup?.name ?? "Group").font(.subheadline.weight(.semibold)).lineLimit(1)
                 if let g = currentGroup {
                     Text("\(count(.group(g.id)))").font(.caption.monospacedDigit()).opacity(0.8)
                 }

@@ -7,6 +7,7 @@ import SwiftUI
 
 enum SwipeAction: String, CaseIterable, Identifiable {
     case select
+    case reach
     case log
     case star
     case snooze
@@ -20,6 +21,7 @@ enum SwipeAction: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .select: "Select"
+        case .reach: "Contact"
         case .log: "Log a call"
         case .star: "Star"
         case .snooze: "Snooze 2 weeks"
@@ -31,6 +33,7 @@ enum SwipeAction: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .select: "checkmark.circle"
+        case .reach: "phone.arrow.up.right"
         case .log: "square.and.pencil"
         case .star: "star"
         case .snooze: "zzz"
@@ -42,6 +45,7 @@ enum SwipeAction: String, CaseIterable, Identifiable {
     var tint: Color {
         switch self {
         case .select: .gray
+        case .reach: Theme.rise
         case .log: Theme.accent
         case .star: .yellow
         case .snooze: .indigo
@@ -60,9 +64,9 @@ enum SwipeAction: String, CaseIterable, Identifiable {
     static let leadingKey = "swipeLeading"
     static let trailingKey = "swipeTrailing"
     /// Swipe right starts a selection with that person ticked; swipe
-    /// left snoozes.
+    /// left offers every way to contact them.
     static let defaultLeading = SwipeAction.select.rawValue
-    static let defaultTrailing = SwipeAction.snooze.rawValue
+    static let defaultTrailing = SwipeAction.reach.rawValue
 
     /// An edge carries one action. The stored form is its raw value, and
     /// an empty string is a deliberately bare edge, not a fall back to
