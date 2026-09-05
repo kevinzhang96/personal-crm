@@ -29,6 +29,9 @@ struct BulkAddView: View {
     }
 
     let source: Source
+    /// The group the list was showing when + was tapped, if any: people
+    /// added while looking at College are College people until told otherwise.
+    var initialGroup: FriendGroup?
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appearance") private var appearance = Appearance.dark.rawValue
@@ -67,7 +70,7 @@ struct BulkAddView: View {
                 }
             }
             .onAppear {
-                if let home = Groups.defaultGroup(groups) { chosenGroups = [home.id] }
+                if let home = initialGroup ?? Groups.defaultGroup(groups) { chosenGroups = [home.id] }
                 if case .names = source { textFocused = true }
             }
         }

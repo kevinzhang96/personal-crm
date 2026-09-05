@@ -35,6 +35,12 @@ struct PeopleView: View {
         _filter = State(initialValue: initialFilter)
     }
 
+    /// The group the chips are showing, when they are showing one.
+    private var currentGroup: FriendGroup? {
+        if case .group(let id) = filter { return groups.first { $0.id == id } }
+        return nil
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -89,7 +95,7 @@ struct PeopleView: View {
                 .ignoresSafeArea()
             }
             .sheet(item: $bulk) { source in
-                BulkAddView(source: source).onDisappear { picked = [] }
+                BulkAddView(source: source, initialGroup: currentGroup).onDisappear { picked = [] }
             }
             .sheet(isPresented: $showGroups) { GroupsView() }
             .confirmationDialog(
@@ -247,6 +253,7 @@ struct PeopleView: View {
         Menu {
             Button {
                 let friend = Friend()
+                if let group = currentGroup { friend.groups = [group] }
                 context.insert(friend)
                 newFriend = friend
             } label: { Label("New friend", systemImage: "person.badge.plus") }
