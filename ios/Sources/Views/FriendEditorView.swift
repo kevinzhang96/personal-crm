@@ -9,6 +9,7 @@ import SwiftUI
 struct FriendEditorView: View {
     @Bindable var friend: Friend
     let isNew: Bool
+    @Query(sort: \FriendGroup.order) private var groups: [FriendGroup]
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appearance") private var appearance = Appearance.dark.rawValue
@@ -90,13 +91,13 @@ struct FriendEditorView: View {
 
     private var circle: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionLabel("Circle")
+            SectionLabel("Group")
             ChipStrip(wraps: true) {
-                ForEach(FriendCircle.allCases) { c in
-                    GlassChip(active: friend.circle == c, action: { friend.circle = c }) {
+                ForEach(groups) { g in
+                    GlassChip(active: friend.group?.id == g.id, action: { friend.group = g }) {
                         VStack(spacing: 1) {
-                            Text(c.label).font(.subheadline.weight(.semibold))
-                            Text(c.defaultCadenceDays.map { "\($0)d" } ?? "—")
+                            Text(g.name).font(.subheadline.weight(.semibold))
+                            Text(g.cadenceLabel)
                                 .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
                         }
                     }
@@ -189,9 +190,10 @@ struct FriendEditorView: View {
     // MARK: state
 
     private func load() {
+        if friend.group == nil { friend.group = Groups.defaultGroup(groups) }
         tagsText = friend.tags.joined(separator: ", ")
         customCadence = friend.cadenceDays != nil
-        cadence = friend.cadenceDays ?? friend.circle.defaultCadenceDays ?? 30
+        cadence = friend.cadenceDays ?? friend.group?.cadenceDays ?? 30
         if let b = friend.birthday {
             birthdayKnown = true
             yearKnown = b.year != nil

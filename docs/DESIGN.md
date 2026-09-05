@@ -159,10 +159,23 @@ counts as contact; `status` = f(lastContact, cadence, snooze, now).
 
 ## 4. Behaviour
 
+### Groups
+
+Every friend is in exactly one group, and the group carries the cadence
+its members inherit; `cadenceDays` on the friend overrides it. Groups are
+the reader's own (`FriendGroup`: name, cadence, order). The five circles
+of the first design — inner 7d · close 30d · friends 90d · acquaintances
+365d · no nudges — are seeded as the starting groups on first launch and
+are ordinary groups from then on. The invariant that everyone has a
+group is kept by `Services/Groups.swift`: it seeds, and it re-homes any
+friend without one (a pre-groups install, by the circle it kept; a
+deleted group's people, by the destination chosen at deletion). Bulk
+moves happen from the People list's Select mode; the group manager lives
+in Settings and behind the People "+" menu.
+
 ### Cadence and nudges
 
-Circle defaults: inner 7d · close 30d · friends 90d · acquaintances 365d ·
-none = never nudge. `cadenceDays` overrides. Status is pure:
+Status is pure:
 
 ```
 overdue(days)  if now − lastContact > cadence   (never contacted ⇒ overdue since createdAt)

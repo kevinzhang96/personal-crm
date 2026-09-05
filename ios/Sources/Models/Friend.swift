@@ -43,7 +43,10 @@ final class Friend {
     @Attribute(.externalStorage) var photo: Data?
     /// The linked CNContact, for refreshing name/photo/methods from it.
     var contactIdentifier: String?
+    /// The circle this friend was in before groups existed; only the
+    /// migration reads it (Services/Groups.swift).
     var circleRaw: String = FriendCircle.friends.rawValue
+    var group: FriendGroup?
     /// Overrides the circle's default cadence when set.
     var cadenceDays: Int?
     /// "Not now": hidden from nudges and the digest until this passes.
@@ -78,7 +81,15 @@ extension Friend {
         set { circleRaw = newValue.rawValue }
     }
 
-    var effectiveCadenceDays: Int? { cadenceDays ?? circle.defaultCadenceDays }
+    /// The reader's override, else the group's pace; the circle's default
+    /// only for a friend the migration has not reached.
+    var effectiveCadenceDays: Int? {
+        if let cadenceDays { return cadenceDays }
+        if let group { return group.cadenceDays }
+        return circle.defaultCadenceDays
+    }
+
+    var groupName: String { group?.name ?? circle.label }
 
     /// Derived from entries, never stored: the newest entry that counts as
     /// actually being in touch (a note about someone is not a conversation).

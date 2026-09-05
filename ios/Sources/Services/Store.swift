@@ -6,7 +6,7 @@ import SwiftData
 
 enum Store {
     static let schema = Schema([
-        Friend.self, ContactMethod.self, Entry.self, Fact.self, Reminder.self, ImportantDate.self,
+        Friend.self, FriendGroup.self, ContactMethod.self, Entry.self, Fact.self, Reminder.self, ImportantDate.self,
     ])
 
     static func container(inMemory: Bool = false) throws -> ModelContainer {

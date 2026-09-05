@@ -15,6 +15,8 @@ struct SettingsView: View {
     @AppStorage(SwipeAction.trailingKey) private var swipeTrailing = SwipeAction.defaultTrailing
     @Query private var friends: [Friend]
     @Query private var entries: [Entry]
+    @Query(sort: \FriendGroup.order) private var groups: [FriendGroup]
+    @State private var showGroups = false
     @State private var notifications: UNAuthorizationStatus = .notDetermined
     @State private var exportURL: URL?
     @State private var exporting = false
@@ -25,6 +27,7 @@ struct SettingsView: View {
         NavigationStack {
             PanelScroll {
                 appearancePanel
+                groupsPanel
                 swipePanel
                 nudgesPanel
                 suggestionsPanel
@@ -52,6 +55,7 @@ struct SettingsView: View {
                     note = error.localizedDescription
                 }
             }
+            .sheet(isPresented: $showGroups) { GroupsView() }
             .alert("Data", isPresented: .init(get: { note != nil }, set: { if !$0 { note = nil } })) {
                 Button("OK") {}
             } message: { Text(note ?? "") }
@@ -70,6 +74,27 @@ struct SettingsView: View {
                     }
                 }
             }
+        }
+        .panel()
+    }
+
+    private var groupsPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                SectionLabel("Groups")
+                Spacer()
+                Button("Manage") { showGroups = true }.font(.caption.weight(.semibold))
+            }
+            ForEach(groups) { g in
+                HStack {
+                    Text(g.name).font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Text("\(g.cadenceSentence) · \(g.memberCount)")
+                        .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                }
+            }
+            Text("Each group sets how often you'd like to be in touch with its people.")
+                .font(.caption2).foregroundStyle(.tertiary)
         }
         .panel()
     }

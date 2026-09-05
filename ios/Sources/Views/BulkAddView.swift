@@ -33,8 +33,9 @@ struct BulkAddView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appearance") private var appearance = Appearance.dark.rawValue
     @Query(sort: \Friend.displayName) private var friends: [Friend]
+    @Query(sort: \FriendGroup.order) private var groups: [FriendGroup]
     @State private var text = ""
-    @State private var circle: FriendCircle = .friends
+    @State private var group: FriendGroup?
     @State private var tagsText = ""
     @State private var excluded: Set<String> = []
     @State private var adding = false
@@ -62,10 +63,13 @@ struct BulkAddView: View {
                     Button { Task { await add() } } label: {
                         if adding { ProgressView() } else { Text(selected.isEmpty ? "Add" : "Add \(selected.count)") }
                     }
-                    .disabled(adding || selected.isEmpty)
+                    .disabled(adding || selected.isEmpty || group == nil)
                 }
             }
-            .onAppear { if case .names = source { textFocused = true } }
+            .onAppear {
+                group = Groups.defaultGroup(groups)
+                if case .names = source { textFocused = true }
+            }
         }
         .preferredColorScheme(Appearance(rawValue: appearance)?.colorScheme)
         .interactiveDismissDisabled(!text.isEmpty)
@@ -153,11 +157,11 @@ struct BulkAddView: View {
         VStack(alignment: .leading, spacing: 10) {
             SectionLabel("Everyone gets")
             ChipStrip(wraps: true) {
-                ForEach(FriendCircle.allCases) { c in
-                    GlassChip(active: circle == c, action: { circle = c }) {
+                ForEach(groups) { g in
+                    GlassChip(active: group?.id == g.id, action: { group = g }) {
                         VStack(spacing: 1) {
-                            Text(c.label).font(.subheadline.weight(.semibold))
-                            Text(c.defaultCadenceDays.map { "\($0)d" } ?? "—")
+                            Text(g.name).font(.subheadline.weight(.semibold))
+                            Text(g.cadenceLabel)
                                 .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
                         }
                     }
@@ -181,7 +185,8 @@ struct BulkAddView: View {
         var authorized = false
         if case .contacts = source { authorized = await ContactsService.requestAccess() }
         for row in selected {
-            let friend = Friend(displayName: row.name, circle: circle)
+            let friend = Friend(displayName: row.name)
+            friend.group = group
             friend.tags = tags
             context.insert(friend)
             if let contact = row.contact {

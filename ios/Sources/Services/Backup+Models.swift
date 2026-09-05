@@ -9,8 +9,10 @@ enum Exporter {
     static func snapshot(context: ModelContext, now: Date = Date()) throws -> Backup {
         let friends = try context.fetch(FetchDescriptor<Friend>(sortBy: [SortDescriptor(\.displayName)]))
         let entries = try context.fetch(FetchDescriptor<Entry>(sortBy: [SortDescriptor(\.date)]))
+        let groups = Groups.all(context: context)
         return Backup(
             exportedAt: now,
+            groups: groups.map { Backup.GroupRecord(id: $0.id, name: $0.name, cadenceDays: $0.cadenceDays, order: $0.order) },
             friends: friends.map(record),
             entries: entries.map { e in
                 Backup.EntryRecord(
@@ -24,7 +26,7 @@ enum Exporter {
         Backup.FriendRecord(
             id: f.id, displayName: f.displayName, givenName: f.givenName, familyName: f.familyName,
             nickname: f.nickname, photoBase64: f.photo?.base64EncodedString(),
-            contactIdentifier: f.contactIdentifier, circle: f.circleRaw, cadenceDays: f.cadenceDays,
+            contactIdentifier: f.contactIdentifier, circle: f.groupName, groupId: f.group?.id, cadenceDays: f.cadenceDays,
             snoozedUntil: f.snoozedUntil, tags: f.tags, location: f.location,
             timeZoneIdentifier: f.timeZoneIdentifier, howWeMet: f.howWeMet, about: f.about,
             summary: f.summary.isEmpty ? nil : f.summary, summaryUpdatedAt: f.summaryUpdatedAt,
@@ -118,6 +120,23 @@ enum Importer {
     @MainActor
     static func merge(_ backup: Backup, audioDir: URL?, into context: ModelContext) throws -> Summary {
         var summary = Summary()
+        // Groups first: friends point at them. By id, then by name, so a
+        // backup's "Close" and this install's "Close" are the same group.
+        var groupsById = Dictionary(uniqueKeysWithValues: Groups.all(context: context).map { ($0.id, $0) })
+        for g in backup.groups ?? [] {
+            if let existing = groupsById[g.id] {
+                existing.name = g.name
+                existing.cadenceDays = g.cadenceDays
+                existing.order = g.order
+            } else if let sameName = groupsById.values.first(where: { $0.name.caseInsensitiveCompare(g.name) == .orderedSame }) {
+                groupsById[g.id] = sameName
+            } else {
+                let new = FriendGroup(name: g.name, cadenceDays: g.cadenceDays, order: g.order)
+                new.id = g.id
+                context.insert(new)
+                groupsById[g.id] = new
+            }
+        }
         var friendsById = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<Friend>()).map { ($0.id, $0) })
         var entriesById = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<Entry>()).map { ($0.id, $0) })
 
@@ -168,7 +187,11 @@ enum Importer {
             friend.nickname = record.nickname
             friend.photo = record.photoBase64.flatMap { Data(base64Encoded: $0) }
             friend.contactIdentifier = record.contactIdentifier
-            friend.circleRaw = record.circle
+            if FriendCircle(rawValue: record.circle) != nil { friend.circleRaw = record.circle }
+            friend.group = record.groupId.flatMap { groupsById[$0] }
+                ?? groupsById.values.first { $0.name.caseInsensitiveCompare(record.circle) == .orderedSame }
+                ?? groupsById.values.first { $0.name == FriendCircle(rawValue: record.circle)?.label }
+                ?? friend.group
             friend.cadenceDays = record.cadenceDays
             friend.snoozedUntil = record.snoozedUntil
             friend.tags = record.tags
@@ -260,6 +283,8 @@ enum Importer {
             }
         }
         try context.save()
+        // Anyone the backup left without a group gets one.
+        Groups.ensureSeeded(context: context)
         return summary
     }
 }

@@ -10,8 +10,17 @@ struct Backup: Codable, Equatable {
 
     var version: Int = Backup.currentVersion
     var exportedAt: Date
+    /// Optional so a backup from before groups still decodes.
+    var groups: [GroupRecord]?
     var friends: [FriendRecord]
     var entries: [EntryRecord]
+
+    struct GroupRecord: Codable, Equatable {
+        var id: UUID
+        var name: String
+        var cadenceDays: Int?
+        var order: Int
+    }
 
     struct FriendRecord: Codable, Equatable {
         var id: UUID
@@ -21,7 +30,9 @@ struct Backup: Codable, Equatable {
         var nickname: String = ""
         var photoBase64: String?
         var contactIdentifier: String?
+        /// The group's name (a circle's raw value in older backups).
         var circle: String
+        var groupId: UUID?
         var cadenceDays: Int?
         var snoozedUntil: Date?
         var tags: [String] = []
@@ -117,16 +128,18 @@ struct Backup: Codable, Equatable {
             .mapValues { pairs in
                 pairs.map(\.1).filter { EntryKind(rawValue: $0.kind)?.countsAsContact ?? false }.map(\.date).max()
             }
-        let header = ["name", "circle", "cadence_days", "last_contact", "status", "tags", "location", "birthday", "archived"]
+        let groupsById = Dictionary(uniqueKeysWithValues: (groups ?? []).map { ($0.id, $0) })
+        let header = ["name", "group", "cadence_days", "last_contact", "status", "tags", "location", "birthday", "archived"]
         let rows = friends.map { f -> [String] in
             let last = lastContact[f.id] ?? nil
-            let cadence = f.cadenceDays ?? FriendCircle(rawValue: f.circle)?.defaultCadenceDays
+            let group = f.groupId.flatMap { groupsById[$0] }
+            let cadence = f.cadenceDays ?? (group != nil ? group?.cadenceDays : FriendCircle(rawValue: f.circle)?.defaultCadenceDays)
             let status = Cadence.status(
                 lastContact: last, cadenceDays: cadence, snoozedUntil: f.snoozedUntil,
                 createdAt: f.createdAt, now: now, calendar: calendar)
             let birthday = f.dates.first { $0.label.caseInsensitiveCompare(ImportantDate.birthdayLabel) == .orderedSame }
             return [
-                f.displayName, f.circle, cadence.map(String.init) ?? "",
+                f.displayName, group?.name ?? f.circle, cadence.map(String.init) ?? "",
                 last.map(Self.day) ?? "", Self.statusWord(status),
                 f.tags.joined(separator: ";"), f.location,
                 birthday.map { d in String(format: "%02d-%02d", d.month, d.day) + (d.year.map { "-\($0)" } ?? "") } ?? "",

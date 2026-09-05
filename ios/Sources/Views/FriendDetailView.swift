@@ -103,7 +103,7 @@ struct FriendDetailView: View {
     }
 
     private var heroMeta: String {
-        var parts = [friend.circle.label]
+        var parts = [friend.groupName]
         if let cadence = friend.effectiveCadenceDays { parts.append("every \(cadence)d") }
         if let last = friend.lastContact { parts.append(Dates.since(last, now: now)) }
         if !friend.location.isEmpty { parts.append(friend.location) }

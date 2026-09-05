@@ -75,7 +75,7 @@ struct FriendRow: View {
     }
 
     private var meta: String {
-        var parts = [friend.circle.label]
+        var parts = [friend.groupName]
         if let last = friend.lastContact {
             parts.append(Dates.since(last, now: now))
         } else {
@@ -194,7 +194,7 @@ struct FriendPreview: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(friend.displayName).font(.headline)
                     HStack(spacing: 6) {
-                        Text(friend.circle.label).font(.caption).foregroundStyle(.secondary)
+                        Text(friend.groupName).font(.caption).foregroundStyle(.secondary)
                         StatusBadge(status: friend.status(now: now))
                     }
                 }

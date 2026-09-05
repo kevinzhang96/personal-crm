@@ -51,7 +51,7 @@ struct BackupTests {
     func friendsCSV() {
         let csv = sample().friendsCSV(now: now, calendar: calendar)
         let lines = csv.split(separator: "\n").map(String.init)
-        #expect(lines[0] == "name,circle,cadence_days,last_contact,status,tags,location,birthday,archived")
+        #expect(lines[0] == "name,group,cadence_days,last_contact,status,tags,location,birthday,archived")
         #expect(lines[1] == "\"Ana, \"\"the\"\" Explorer\",close,30,2026-09-03,on track,college;hiking,,03-14-1992,")
         // Ben: only a note, 50 days ago; created 30 days ago on a 7-day cadence -> 23 over.
         #expect(lines[2] == "Ben,inner,7,,overdue 23d,,,,")
