@@ -15,7 +15,8 @@ Everything stays on the phone. Export is a zip of JSON + CSV + audio.
 
 - **Today**: who is overdue (by circle cadence), follow-ups due this week,
   birthdays in the next fortnight, recent entries.
-- **People**: search, one filter chip per group plus ★ for starred people,
+- **People**: search; chips for All, ★ starred and Reach out, and one
+  dropdown chip that names the group being shown and lists them all;
   long-press preview with facts and last notes. Each swipe edge carries
   one action you choose in Settings (select, log a call, star, snooze,
   archive, delete); out of the box a right swipe starts a selection with
@@ -29,8 +30,9 @@ Everything stays on the phone. Export is a zip of JSON + CSV + audio.
   from Settings; deleting a group asks where anyone left with no group
   should go. Add one by hand, many from Contacts
   (multi-select picker), or many by pasting a list of names; both bulk
-  paths go through a review sheet that sets the circle and tags for the
-  batch and skips anyone already added.
+  paths go through a review sheet that sets the groups and tags for the
+  batch and skips anyone already added. Whichever group the list is
+  filtered to when you tap + is the batch's starting group.
 - **Friend page**: a summary of what to remember right now, rebuilt after
   every log (written by the on-device model where there is one, composed
   from facts and recent notes otherwise); one-tap reach (call / text /

@@ -191,9 +191,35 @@ struct PeopleView: View {
             chip(.all, "All")
             chip(.starred, "★")
             chip(.attention, "Reach out")
-            ForEach(groups) { g in chip(.group(g.id), g.name) }
+            groupMenu
             if count(.archived) > 0 { chip(.archived, "Archived") }
         }
+    }
+
+    /// One chip for all the groups: a strip of them stopped fitting once
+    /// there were more than a few. Names the group being shown, or
+    /// offers them.
+    private var groupMenu: some View {
+        Menu {
+            ForEach(groups) { g in
+                Button { filter = .group(g.id) } label: {
+                    Label("\(g.name)  ·  \(count(.group(g.id)))", systemImage: currentGroup?.id == g.id ? "checkmark" : "folder")
+                }
+            }
+            Divider()
+            Button { showGroups = true } label: { Label("Manage groups…", systemImage: "slider.horizontal.3") }
+        } label: {
+            HStack(spacing: 5) {
+                Text(currentGroup?.name ?? "Group").font(.subheadline.weight(.semibold))
+                if let g = currentGroup {
+                    Text("\(count(.group(g.id)))").font(.caption.monospacedDigit()).opacity(0.8)
+                }
+                Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+            }
+            .foregroundStyle(currentGroup != nil ? Color.white : Color.primary)
+            .padding(.horizontal, 2)
+        }
+        .glassButton(prominent: currentGroup != nil)
     }
 
     private func chip(_ f: Filter, _ label: String) -> some View {
