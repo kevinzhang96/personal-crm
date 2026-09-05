@@ -6,7 +6,9 @@ digest of who has gone quiet, and follow-ups on the specific things people
 told you ("her interview is next Thursday" → "ask Priya how the interview
 went", the morning after).
 
-Everything stays on the phone. Export is a zip of JSON + CSV + audio.
+Everything lives in your private iCloud database, so deleting the app or
+changing phones loses nothing; without an iCloud account it stays on the
+phone. Export is a zip of JSON + CSV + audio either way.
 
 - Design, end to end: [docs/DESIGN.md](docs/DESIGN.md)
 - Working conventions: [CLAUDE.md](CLAUDE.md)
@@ -52,8 +54,9 @@ Everything stays on the phone. Export is a zip of JSON + CSV + audio.
 - **Nudges**: local notifications only — a morning digest on days someone
   is overdue (next 7 mornings pre-scheduled, background refresh extends),
   follow-ups on their day, birthdays on their day.
-- **Backup**: export a zip (backup.json v1, friends.csv, entries.csv,
-  audio/); import merges by id.
+- **Sync and backup**: the store syncs to the private CloudKit database
+  (recordings included); Settings → iCloud shows the state. Export a zip
+  (backup.json v1, friends.csv, entries.csv, audio/); import merges by id.
 
 ## Build
 
@@ -77,4 +80,6 @@ certificate in the keychain, App Store Connect API key in
    `tend-appstore` profile through the ASC API.
 2. Create the app record at appstoreconnect.apple.com (bundle id
    `com.kevinzhang.tend`); the API has no call for this.
-3. `cd ios && ./bin/release.sh` — archive, sign, upload.
+3. Create the iCloud container and assign it to the App ID — the one
+   step the API cannot do; [deploy/ICLOUD.md](deploy/ICLOUD.md).
+4. `cd ios && ./bin/release.sh` — archive, sign, upload.

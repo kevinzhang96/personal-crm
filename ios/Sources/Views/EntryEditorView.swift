@@ -39,6 +39,7 @@ struct EntryEditorView: View {
     @State private var saving = false
     @State private var suggestions: SuggestionBatch?
     @State private var savedEntry: Entry?
+    @State private var removedAudio = false
     @State private var confirmDelete = false
     @FocusState private var textFocused: Bool
 
@@ -188,10 +189,10 @@ struct EntryEditorView: View {
     private var audio: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionLabel("Recording")
-            if let file = audioFile {
+            if let file = audioFile, let playURL = AudioStore.playbackURL(file: file, data: draft.entry?.audio) {
                 HStack(spacing: 12) {
-                    Button { player.toggle(file) } label: {
-                        Image(systemName: player.isPlaying && player.playingFile == file ? "stop.circle.fill" : "play.circle.fill")
+                    Button { player.toggle(playURL) } label: {
+                        Image(systemName: player.isPlaying && player.playingURL == playURL ? "stop.circle.fill" : "play.circle.fill")
                             .font(.title)
                             .foregroundStyle(Theme.accent)
                     }
@@ -215,6 +216,7 @@ struct EntryEditorView: View {
                         audioFile = nil
                         duration = nil
                         transcript = ""
+                        removedAudio = true
                     } label: { Image(systemName: "trash") }
                     .buttonStyle(.plain)
                 }
@@ -240,7 +242,7 @@ struct EntryEditorView: View {
             friends = entry.friends ?? []
             text = entry.text
             transcript = entry.transcript
-            audioFile = entry.audioFile
+            audioFile = entry.audioFile ?? (entry.audio != nil ? "\(entry.id.uuidString).m4a" : nil)
             duration = entry.durationSeconds
         } else {
             kind = draft.kind
@@ -267,7 +269,8 @@ struct EntryEditorView: View {
         transcribing = true
         defer { transcribing = false }
         do {
-            let heard = try await Transcriber.transcribe(AudioStore.url(for: file))
+            guard let url = AudioStore.playbackURL(file: file, data: draft.entry?.audio) else { throw Transcriber.Failure.empty }
+            let heard = try await Transcriber.transcribe(url)
             transcript = heard
             if text.isEmpty { text = heard }
             transcribeNote = nil
@@ -294,6 +297,12 @@ struct EntryEditorView: View {
         entry.transcript = transcript
         if let old = draft.entry?.audioFile, old != audioFile { AudioStore.delete(old) }
         entry.audioFile = audioFile
+        // The bytes go into the store, which is what syncs and survives;
+        // the file stays as the playback cache.
+        if removedAudio, audioFile == nil { entry.audio = nil }
+        if let file = audioFile, entry.audio == nil || draft.entry?.audioFile != file {
+            entry.audio = AudioStore.data(for: file) ?? entry.audio
+        }
         entry.durationSeconds = duration
         entry.friends = friends
         for friend in friends { friend.updatedAt = Date() }

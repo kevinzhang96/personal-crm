@@ -111,7 +111,7 @@ struct EntryRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
-                if entry.audioFile != nil {
+                if entry.hasAudio {
                     Image(systemName: "waveform")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -132,7 +132,7 @@ struct EntryRow: View {
                     .font(.subheadline)
                     .foregroundStyle(showFriends ? .secondary : .primary)
                     .lineLimit(3)
-            } else if entry.audioFile != nil {
+            } else if entry.hasAudio {
                 Text("Recording, not yet transcribed")
                     .font(.subheadline)
                     .foregroundStyle(.tertiary)

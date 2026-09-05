@@ -3,6 +3,7 @@
 
 import SwiftData
 import SwiftUI
+import CloudKit
 import UniformTypeIdentifiers
 import UserNotifications
 
@@ -18,6 +19,7 @@ struct SettingsView: View {
     @Query(sort: \FriendGroup.order) private var groups: [FriendGroup]
     @State private var showGroups = false
     @State private var notifications: UNAuthorizationStatus = .notDetermined
+    @State private var icloudAccount: CKAccountStatus?
     @State private var exportURL: URL?
     @State private var exporting = false
     @State private var importing = false
@@ -27,6 +29,7 @@ struct SettingsView: View {
         NavigationStack {
             PanelScroll {
                 appearancePanel
+                icloudPanel
                 groupsPanel
                 swipePanel
                 nudgesPanel
@@ -37,7 +40,10 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity)
             }
             .navigationTitle("Settings")
-            .task { notifications = await Notifier.authorizationStatus() }
+            .task {
+                notifications = await Notifier.authorizationStatus()
+                icloudAccount = try? await CKContainer(identifier: Store.cloudContainer).accountStatus()
+            }
             .sheet(isPresented: .init(get: { exportURL != nil }, set: { if !$0 { exportURL = nil } })) {
                 if let exportURL { ShareSheet(items: [exportURL]) }
             }
@@ -76,6 +82,36 @@ struct SettingsView: View {
             }
         }
         .panel()
+    }
+
+    private var icloudPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                SectionLabel("iCloud")
+                Spacer()
+                Badge(icloudLine.badge, tint: icloudLine.tint)
+            }
+            Text(icloudLine.text).font(.caption2).foregroundStyle(.tertiary)
+        }
+        .panel()
+    }
+
+    private var icloudLine: (badge: String, tint: Color, text: String) {
+        switch Store.mode {
+        case .local(let reason):
+            return ("off", Theme.warn, "Local only — \(reason). Export keeps a copy in the meantime.")
+        case .cloud:
+            switch icloudAccount {
+            case .available:
+                return ("on", Theme.rise, "Everything here syncs to your private iCloud database. Delete the app and reinstall it, or set up a new phone, and it comes back.")
+            case .noAccount:
+                return ("no account", Theme.warn, "Sign in to iCloud in Settings to sync; until then everything stays on this phone.")
+            case .restricted, .temporarilyUnavailable:
+                return ("waiting", Theme.warn, "iCloud isn't available right now; syncing resumes when it is.")
+            default:
+                return ("checking", .secondary, "Checking your iCloud account.")
+            }
+        }
     }
 
     private var groupsPanel: some View {
@@ -197,7 +233,7 @@ struct SettingsView: View {
     private var dataPanel: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionLabel("Data")
-            Text("\(friends.count) friends · \(entries.count) entries · \(entries.filter { $0.audioFile != nil }.count) recordings")
+            Text("\(friends.count) friends · \(entries.count) entries · \(entries.filter(\.hasAudio).count) recordings")
                 .font(.subheadline).monospacedDigit()
             HStack(spacing: 16) {
                 Button {

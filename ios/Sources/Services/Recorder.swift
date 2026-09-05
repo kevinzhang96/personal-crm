@@ -88,11 +88,11 @@ final class Recorder {
 @Observable
 final class Player: NSObject, AVAudioPlayerDelegate {
     private(set) var isPlaying = false
-    private(set) var playingFile: String?
+    private(set) var playingURL: URL?
     private var player: AVAudioPlayer?
 
-    func toggle(_ file: String) {
-        if isPlaying, playingFile == file {
+    func toggle(_ url: URL) {
+        if isPlaying, playingURL == url {
             stop()
             return
         }
@@ -100,11 +100,11 @@ final class Player: NSObject, AVAudioPlayerDelegate {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
             try AVAudioSession.sharedInstance().setActive(true)
-            let player = try AVAudioPlayer(contentsOf: AudioStore.url(for: file))
+            let player = try AVAudioPlayer(contentsOf: url)
             player.delegate = self
             player.play()
             self.player = player
-            playingFile = file
+            playingURL = url
             isPlaying = true
         } catch {
             isPlaying = false
@@ -115,7 +115,7 @@ final class Player: NSObject, AVAudioPlayerDelegate {
         player?.stop()
         player = nil
         isPlaying = false
-        playingFile = nil
+        playingURL = nil
     }
 
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {

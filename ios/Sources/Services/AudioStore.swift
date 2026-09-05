@@ -1,5 +1,6 @@
-// Where recordings live: one flat directory under Documents, so iOS
-// device backup carries them and export can copy the folder wholesale.
+// Recordings live in the store, as external binary data, so they sync and
+// survive the app; this directory is where they are while being made and
+// a cache of them for playback, which needs a file.
 
 import Foundation
 
@@ -33,5 +34,21 @@ enum AudioStore {
         let name = "\(UUID().uuidString).\(source.pathExtension.isEmpty ? "m4a" : source.pathExtension)"
         try FileManager.default.copyItem(at: source, to: url(for: name))
         return name
+    }
+
+    /// A file to play: the cached one if it is here, else the entry's
+    /// data written out under its name. Nil when there is no recording.
+    static func playbackURL(file: String?, data: Data?) -> URL? {
+        if let file, exists(file) { return url(for: file) }
+        guard let data else { return nil }
+        let name = file ?? "\(UUID().uuidString).m4a"
+        let target = url(for: name)
+        try? data.write(to: target)
+        return target
+    }
+
+    /// The bytes behind a file name, for putting into the store.
+    static func data(for file: String) -> Data? {
+        try? Data(contentsOf: url(for: file))
     }
 }

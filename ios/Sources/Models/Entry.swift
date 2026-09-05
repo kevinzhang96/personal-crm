@@ -47,7 +47,11 @@ final class Entry {
     /// What the recogniser heard, kept apart from `text` so the reader's
     /// edits never destroy the original.
     var transcript: String = ""
-    /// File name under the app's audio directory (AudioStore).
+    /// The recording, carried by the store (and so by iCloud); external
+    /// storage keeps it out of the row.
+    @Attribute(.externalStorage) var audio: Data?
+    /// The cache file's name (AudioStore); also how recordings were kept
+    /// before they lived in the store.
     var audioFile: String?
     var durationSeconds: Double?
     var createdAt: Date = Date()
@@ -70,6 +74,8 @@ extension Entry {
 
     /// The reader's words if there are any, else what was heard.
     var body: String { text.isEmpty ? transcript : text }
+
+    var hasAudio: Bool { audio != nil || (audioFile.map(AudioStore.exists) ?? false) }
 
     var friendNames: String {
         (friends ?? []).map(\.displayName).sorted().joined(separator: ", ")

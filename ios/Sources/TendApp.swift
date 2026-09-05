@@ -45,7 +45,7 @@ struct RootView: View {
             Tab("Log", systemImage: "text.bubble.fill") { LogView() }
             Tab("Settings", systemImage: "gearshape.fill") { SettingsView() }
         }
-        .task { Groups.ensureSeeded(context: context) }
+        .task { Maintenance.run(container: context.container) }
         .onChange(of: scenePhase, initial: true) { _, phase in
             switch phase {
             case .active:

@@ -17,7 +17,8 @@ enum Exporter {
             entries: entries.map { e in
                 Backup.EntryRecord(
                     id: e.id, date: e.date, kind: e.kindRaw, text: e.text, transcript: e.transcript,
-                    audioFile: e.audioFile, durationSeconds: e.durationSeconds, createdAt: e.createdAt,
+                    audioFile: e.hasAudio ? (e.audioFile ?? "\(e.id.uuidString).m4a") : nil,
+                    durationSeconds: e.durationSeconds, createdAt: e.createdAt,
                     friendIds: (e.friends ?? []).map(\.id))
             })
     }
@@ -63,8 +64,15 @@ enum Exporter {
         try backup.entriesCSV().write(to: root.appendingPathComponent("entries.csv"), atomically: true, encoding: .utf8)
         let audio = root.appendingPathComponent("audio", isDirectory: true)
         try FileManager.default.createDirectory(at: audio, withIntermediateDirectories: true)
-        for file in backup.entries.compactMap(\.audioFile) where AudioStore.exists(file) {
-            try FileManager.default.copyItem(at: AudioStore.url(for: file), to: audio.appendingPathComponent(file))
+        let entries = try context.fetch(FetchDescriptor<Entry>())
+        let byId = Dictionary(uniqueKeysWithValues: entries.map { ($0.id, $0) })
+        for record in backup.entries {
+            guard let file = record.audioFile, let entry = byId[record.id] else { continue }
+            if let data = entry.audio {
+                try data.write(to: audio.appendingPathComponent(file))
+            } else if let cached = entry.audioFile, AudioStore.exists(cached) {
+                try FileManager.default.copyItem(at: AudioStore.url(for: cached), to: audio.appendingPathComponent(file))
+            }
         }
 
         let zip = tmp.appendingPathComponent("Tend-\(stamp).zip")
@@ -119,7 +127,7 @@ enum Importer {
     }
 
     @MainActor
-    static func merge(_ backup: Backup, audioDir: URL?, into context: ModelContext) throws -> Summary {
+    static func merge(_ backup: Backup, audioDir: URL?, into context: ModelContext, audio: [UUID: Data] = [:]) throws -> Summary {
         var summary = Summary()
         // Groups first: friends point at them. By id, then by name, so a
         // backup's "Close" and this install's "Close" are the same group.
@@ -161,10 +169,11 @@ enum Importer {
             entry.audioFile = record.audioFile
             entry.durationSeconds = record.durationSeconds
             entry.createdAt = record.createdAt
-            if let file = record.audioFile, let audioDir, !AudioStore.exists(file) {
+            if entry.audio == nil, let data = audio[record.id] { entry.audio = data }
+            if let file = record.audioFile, entry.audio == nil, let audioDir {
                 let source = audioDir.appendingPathComponent(file)
-                if FileManager.default.fileExists(atPath: source.path),
-                   (try? FileManager.default.copyItem(at: source, to: AudioStore.url(for: file))) != nil {
+                if let data = try? Data(contentsOf: source) {
+                    entry.audio = data
                     summary.audioRestored += 1
                 }
             }

@@ -15,8 +15,20 @@ targets:
     info:
       path: Info.plist
       properties:
-        UIBackgroundModes: [fetch]
+        # remote-notification: CloudKit's silent pushes, which are how a
+        # change on one device reaches another promptly.
+        UIBackgroundModes: [fetch, remote-notification]
         BGTaskSchedulerPermittedIdentifiers: [com.kevinzhang.tend.refresh]
+    # iCloud: the store syncs to the private CloudKit database of this
+    # container. The App ID must carry the iCloud and Push capabilities and
+    # this container (bin/provision.sh enables the capabilities; the
+    # container itself is a developer-portal step — see deploy/ICLOUD.md).
+    entitlements:
+      path: Tend.entitlements
+      properties:
+        com.apple.developer.icloud-services: [CloudKit]
+        com.apple.developer.icloud-container-identifiers: [iCloud.com.kevinzhang.tend]
+        aps-environment: production
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kevinzhang.tend

@@ -64,7 +64,9 @@ Considered beyond the original list. **MVP** ships in the first build;
 
 ### Local-first, no server
 
-All data lives on the phone in a SwiftData store. There is no backend.
+All data lives in a SwiftData store on the phone, mirrored to the
+reader's private CloudKit database — Apple's infrastructure, not ours,
+and invisible to us. There is no backend.
 
 - **Privacy is the product.** Notes about friends' health, jobs, and
   relationships are the most sensitive data most people hold. The strongest
@@ -77,8 +79,13 @@ All data lives on the phone in a SwiftData store. There is no backend.
 
 This deliberately inverts tcgdb's "backend does the work" rule: tcgdb has
 three clients sharing one catalog; Tend has one client and one owner.
-CloudKit sync is the designed-for path to a second device (§3), still
-without a server of ours.
+CloudKit sync (shipped 2026-09-05) is what makes the data survive the
+app: the store opens CloudKit-backed when the build carries the
+entitlement, falls back to local-only otherwise and says so in Settings,
+and the pre-sync store is imported once into the synced one through the
+backup codec rather than adopted in place. Recordings are external
+binary data in the store, so they travel too. `deploy/ICLOUD.md` has the
+one portal step the API cannot do and the schema-to-Production note.
 
 ### Stack
 

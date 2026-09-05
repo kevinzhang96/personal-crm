@@ -4,3 +4,4 @@ ios/Info.plist
 ios/build/
 ios/.build/
 ios/DerivedData/
+ios/Tend.entitlements
