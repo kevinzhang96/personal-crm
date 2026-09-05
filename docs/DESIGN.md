@@ -159,6 +159,19 @@ counts as contact; `status` = f(lastContact, cadence, snooze, now).
 
 ## 4. Behaviour
 
+### Search
+
+The People search box is a small language (`Logic/PeopleQuery.swift`,
+tested): a bare word matches anything about a person — name, nickname,
+tags, location, how you met, about, group names, facts, and the text of
+their entries; `key:value` narrows to one property; `#tag` is a tag;
+terms AND together; double quotes hold a phrase. Keys are a fixed few
+(`tag`, `group`/`in`, `lives`/`location`/`city`, `met`, `name`, `note`/
+`said`/`mentioned`, `star`) and otherwise a fact label, so `works:figma`,
+`partner:` (has one) and `gift:kettle` need no configuration. Tags are
+free strings on the friend, added in the editor (existing tags offered
+as toggles), in bulk from Select mode, and filtered by a dropdown chip.
+
 ### Groups
 
 Every friend is in at least one group, and a group carries a cadence;

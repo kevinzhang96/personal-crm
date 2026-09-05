@@ -15,9 +15,12 @@ Everything stays on the phone. Export is a zip of JSON + CSV + audio.
 
 - **Today**: who is overdue (by circle cadence), follow-ups due this week,
   birthdays in the next fortnight, recent entries.
-- **People**: search; chips for All, ★ starred and Reach out, and one
-  dropdown chip that names the group being shown and lists them all;
-  long-press preview with facts and last notes. Each swipe edge carries
+- **People**: search that understands people — words match names, tags,
+  places, groups, facts and notes; `#tag`, `lives:LIC`, `works:Figma`,
+  `partner:`, `met:college`, `note:skiing` narrow, and terms combine.
+  Chips for All, ★ starred and Reach out, a dropdown for groups and one
+  for tags; long-press for a preview, every way to reach them, and the
+  quick actions. Each swipe edge carries
   one action you choose in Settings (select, log a call, star, snooze,
   archive, delete); out of the box a right swipe starts a selection with
   that person ticked and a left swipe snoozes; delete always confirms

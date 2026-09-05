@@ -10,6 +10,7 @@ struct FriendEditorView: View {
     @Bindable var friend: Friend
     let isNew: Bool
     @Query(sort: \FriendGroup.order) private var groups: [FriendGroup]
+    @Query private var everyone: [Friend]
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appearance") private var appearance = Appearance.dark.rawValue
@@ -117,7 +118,20 @@ struct FriendEditorView: View {
     private var details: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionLabel("Details")
-            TextField("Tags, comma separated", text: $tagsText).textFieldStyle(.roundedBorder)
+            let known = knownTags
+            if !known.isEmpty {
+                ChipStrip(wraps: true) {
+                    ForEach(known, id: \.self) { tag in
+                        GlassChip(active: currentTags.contains(tag), action: { toggleTag(tag) }) {
+                            Text("#\(tag)").font(.caption.weight(.semibold))
+                        }
+                    }
+                }
+            }
+            TextField("Tags, comma separated", text: $tagsText)
+                .textFieldStyle(.roundedBorder)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
             TextField("Where they live", text: $friend.location).textFieldStyle(.roundedBorder)
             TextField("How you met", text: $friend.howWeMet).textFieldStyle(.roundedBorder)
             TextField("About them", text: $friend.about, axis: .vertical)
@@ -211,6 +225,30 @@ struct FriendEditorView: View {
         } else {
             friend.groups = (friend.groups ?? []) + [group]
         }
+    }
+
+    /// Tags anyone else already has, most used first — the ones worth a
+    /// tap rather than a retype.
+    private var knownTags: [String] {
+        var counts: [String: Int] = [:]
+        for f in everyone where f.id != friend.id {
+            for tag in f.tags { counts[tag, default: 0] += 1 }
+        }
+        return counts.sorted { ($1.value, $0.key) < ($0.value, $1.key) }.prefix(16).map(\.key)
+    }
+
+    private var currentTags: [String] {
+        tagsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
+    private func toggleTag(_ tag: String) {
+        var tags = currentTags
+        if let i = tags.firstIndex(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) {
+            tags.remove(at: i)
+        } else {
+            tags.append(tag)
+        }
+        tagsText = tags.joined(separator: ", ")
     }
 
     private func add(_ kind: ContactKind) {

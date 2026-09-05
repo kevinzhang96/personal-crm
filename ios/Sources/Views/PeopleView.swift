@@ -27,6 +27,9 @@ struct PeopleView: View {
     @State private var selecting = false
     @State private var selected = Set<UUID>()
     @State private var confirmBulkDelete = false
+    @State private var selectedTag: String?
+    @State private var tagPrompt = false
+    @State private var newTag = ""
     @AppStorage(SwipeAction.leadingKey) private var swipeLeading = SwipeAction.defaultLeading
     @AppStorage(SwipeAction.trailingKey) private var swipeTrailing = SwipeAction.defaultTrailing
     private let now = Date()
@@ -64,7 +67,9 @@ struct PeopleView: View {
                 }
             }
             .navigationTitle("People")
-            .searchable(text: $search, prompt: "Names, tags, places…")
+            .searchable(text: $search, prompt: "Names, #tags, lives:LIC, works:…")
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
             .navigationDestination(for: Friend.self) { FriendDetailView(friend: $0) }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -108,6 +113,20 @@ struct PeopleView: View {
                     deleting = nil
                 }
             }
+            .alert("Tag \(selected.count) people", isPresented: $tagPrompt) {
+                TextField("Tag", text: $newTag)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                Button("Add") {
+                    tag(chosen, with: newTag)
+                    newTag = ""
+                    selected = []
+                    selecting = false
+                }
+                Button("Cancel", role: .cancel) { newTag = "" }
+            } message: {
+                Text("Added to each of them; search for it as #tag.")
+            }
             .confirmationDialog(
                 "Delete \(selected.count) people? Their facts and reminders go too; entries stay in the log.",
                 isPresented: $confirmBulkDelete, titleVisibility: .visible
@@ -139,6 +158,27 @@ struct PeopleView: View {
             }
             .contextMenu {
                 Button { draft = EntryDraft(friends: [friend]) } label: { Label("Add note", systemImage: "square.and.pencil") }
+                if !friend.sortedMethods.isEmpty {
+                    // Every way to reach them, from the list: a number fans
+                    // out into its channels, everything else opens itself.
+                    Menu {
+                        ForEach(friend.sortedMethods) { method in
+                            if method.kind == .phone {
+                                ForEach([ContactKind.phone, .sms, .facetime, .whatsapp], id: \.self) { channel in
+                                    if let url = ContactLinks.url(kind: channel, value: method.value) {
+                                        Button { PendingContact.open(url, kind: channel, friendId: friend.id) } label: {
+                                            Label(method.label.isEmpty ? channel.label : "\(channel.label) · \(method.label)", systemImage: channel.icon)
+                                        }
+                                    }
+                                }
+                            } else if let url = method.url {
+                                Button { PendingContact.open(url, kind: method.kind, friendId: friend.id) } label: {
+                                    Label(method.kind.label, systemImage: method.kind.icon)
+                                }
+                            }
+                        }
+                    } label: { Label("Reach", systemImage: "phone.arrow.up.right") }
+                }
                 Button { star([friend], !friend.starred) } label: {
                     Label(friend.starred ? "Unstar" : "Star", systemImage: friend.starred ? "star.slash" : "star")
                 }
@@ -192,8 +232,42 @@ struct PeopleView: View {
             chip(.starred, "★")
             chip(.attention, "Reach out")
             groupMenu
+            if !allTags.isEmpty { tagMenu }
             if count(.archived) > 0 { chip(.archived, "Archived") }
         }
+    }
+
+    /// Every tag on anyone not archived, most used first.
+    private var allTags: [(tag: String, count: Int)] {
+        var counts: [String: Int] = [:]
+        for friend in friends where !friend.archived {
+            for tag in friend.tags { counts[tag, default: 0] += 1 }
+        }
+        return counts.map { ($0.key, $0.value) }.sorted { ($1.1, $0.0) < ($0.1, $1.0) }
+    }
+
+    /// Tags narrow whatever else is showing, so they are a filter of
+    /// their own rather than one of the chips.
+    private var tagMenu: some View {
+        Menu {
+            ForEach(allTags, id: \.tag) { entry in
+                Button { selectedTag = entry.tag } label: {
+                    Label("#\(entry.tag)  ·  \(entry.count)", systemImage: selectedTag == entry.tag ? "checkmark" : "number")
+                }
+            }
+            if selectedTag != nil {
+                Divider()
+                Button { selectedTag = nil } label: { Label("Any tag", systemImage: "xmark.circle") }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Text(selectedTag.map { "#\($0)" } ?? "Tag").font(.subheadline.weight(.semibold))
+                Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+            }
+            .foregroundStyle(selectedTag != nil ? Color.white : Color.primary)
+            .padding(.horizontal, 2)
+        }
+        .glassButton(prominent: selectedTag != nil)
     }
 
     /// One chip for all the groups: a strip of them stopped fitting once
@@ -249,9 +323,11 @@ struct PeopleView: View {
     }
 
     private var shown: [Friend] {
-        let query = search.trimmingCharacters(in: .whitespaces).lowercased()
+        let query = PeopleQuery.parse(search)
         let list = friends.filter { friend in
-            matches(friend, filter) && (query.isEmpty || friend.searchText.contains(query))
+            matches(friend, filter)
+                && (selectedTag.map { tag in friend.tags.contains { $0.caseInsensitiveCompare(tag) == .orderedSame } } ?? true)
+                && (query.isEmpty || query.matches(friend.searchable(withNotes: query.needsNotes)))
         }
         // Most overdue first when chasing; otherwise starred first, then by name.
         return filter == .attention
@@ -261,6 +337,9 @@ struct PeopleView: View {
 
     private var empty: some View {
         switch filter {
+        case _ where !search.isEmpty:
+            EmptyPanel(icon: "magnifyingglass", title: "No matches",
+                       hint: "Words match anything about a person. Narrow with #tag, lives:LIC, works:Figma, partner:, met:college, note:skiing — terms combine.")
         case .attention:
             EmptyPanel(icon: "checkmark.seal", title: "Nobody to chase", hint: "Everyone is within their cadence.")
         case .starred:
@@ -356,6 +435,15 @@ struct PeopleView: View {
                 }
                 .glassButton()
                 .disabled(n == 0)
+                Button { tagPrompt = true } label: {
+                    Image(systemName: "number")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.primary)
+                        .padding(.horizontal, 2)
+                        .padding(.vertical, 3)
+                }
+                .glassButton()
+                .disabled(n == 0)
                 Button(role: .destructive) { confirmBulkDelete = true } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "trash")
@@ -390,6 +478,16 @@ struct PeopleView: View {
             } else if !friend.isIn(group) {
                 friend.groups = (friend.groups ?? []) + [group]
             }
+            friend.updatedAt = now
+        }
+        save()
+    }
+
+    private func tag(_ people: [Friend], with raw: String) {
+        let tag = raw.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard !tag.isEmpty else { return }
+        for friend in people where !friend.tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) {
+            friend.tags.append(tag)
             friend.updatedAt = now
         }
         save()
@@ -430,5 +528,15 @@ struct PeopleView: View {
 extension Friend {
     var searchText: String {
         ([displayName, nickname, location, howWeMet, groupNames] + tags).joined(separator: " ").lowercased()
+    }
+
+    /// The plain snapshot the search language reads.
+    func searchable(withNotes: Bool) -> SearchableFriend {
+        SearchableFriend(
+            name: displayName, nickname: nickname, tags: tags, location: location, howWeMet: howWeMet, about: about,
+            groups: sortedGroups.map(\.name),
+            facts: (facts ?? []).map { .init(label: $0.label, value: $0.value) },
+            notes: withNotes ? (entries ?? []).map(\.body) : [],
+            starred: starred)
     }
 }
