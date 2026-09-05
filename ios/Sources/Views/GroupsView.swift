@@ -26,7 +26,7 @@ struct GroupsView: View {
                                     .foregroundStyle(Theme.accent)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(group.name.isEmpty ? "Unnamed" : group.name).font(.subheadline.weight(.semibold))
-                                    Text("\(group.cadenceSentence) · \(group.memberCount) people")
+                                    Text("\(group.cadenceSentence) · \(group.memberSentence)")
                                         .font(.caption).foregroundStyle(.secondary).monospacedDigit()
                                 }
                                 Spacer()
@@ -71,12 +71,12 @@ struct GroupsView: View {
             .confirmationDialog(deleteTitle, isPresented: .init(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
                                 titleVisibility: .visible) {
                 if let group = deleting {
-                    let members = group.friends ?? []
-                    if members.isEmpty {
+                    let sole = group.soleMembers
+                    if sole.isEmpty {
                         Button("Delete \(group.name)", role: .destructive) { delete(group, moving: nil) }
                     } else {
                         ForEach(groups.filter { $0.id != group.id }) { other in
-                            Button("Move \(members.count) to \(other.name), then delete") { delete(group, moving: other) }
+                            Button("Move \(sole.count) to \(other.name), then delete") { delete(group, moving: other) }
                         }
                     }
                 }
@@ -87,10 +87,12 @@ struct GroupsView: View {
 
     private var deleteTitle: String {
         guard let group = deleting else { return "" }
-        let n = (group.friends ?? []).count
-        if n == 0 { return "Delete \(group.name)? It has nobody in it." }
-        if groups.count == 1 { return "\(group.name) is the only group; its \(n) people need somewhere to go. Make another group first." }
-        return "Delete \(group.name)? Its \(n) people need a group."
+        let members = (group.members ?? []).count
+        let sole = group.soleMembers.count
+        if members == 0 { return "Delete \(group.name)? It has nobody in it." }
+        if sole == 0 { return "Delete \(group.name)? Its \(members) people are all in other groups too." }
+        if groups.count == 1 { return "\(group.name) is the only group; its \(sole) people need somewhere to go. Make another group first." }
+        return "Delete \(group.name)? \(sole) of its \(members) people are in no other group and need one."
     }
 
     private func move(from source: IndexSet, to destination: Int) {
@@ -101,7 +103,10 @@ struct GroupsView: View {
     }
 
     private func delete(_ group: FriendGroup, moving destination: FriendGroup?) {
-        for friend in group.friends ?? [] { friend.group = destination }
+        for friend in group.members ?? [] {
+            friend.groups?.removeAll { $0.id == group.id }
+            if (friend.groups ?? []).isEmpty, let destination { friend.groups = [destination] }
+        }
         context.delete(group)
         try? context.save()
         Task { await Notifier.reschedule(context: context) }
@@ -144,7 +149,7 @@ struct GroupEditorView: View {
                 }
                 .panel()
                 if !isNew {
-                    Text("\(group.memberCount) people").font(.caption).foregroundStyle(.secondary)
+                    Text(group.memberSentence).font(.caption).foregroundStyle(.secondary)
                 }
             }
             .navigationTitle(isNew ? "New group" : "Group")

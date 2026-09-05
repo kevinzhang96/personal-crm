@@ -32,7 +32,10 @@ struct Backup: Codable, Equatable {
         var contactIdentifier: String?
         /// The group's name (a circle's raw value in older backups).
         var circle: String
+        /// The single group of an earlier build; `groupIds` supersedes it.
         var groupId: UUID?
+        var groupIds: [UUID]?
+        var starred: Bool?
         var cadenceDays: Int?
         var snoozedUntil: Date?
         var tags: [String] = []
@@ -132,14 +135,16 @@ struct Backup: Codable, Equatable {
         let header = ["name", "group", "cadence_days", "last_contact", "status", "tags", "location", "birthday", "archived"]
         let rows = friends.map { f -> [String] in
             let last = lastContact[f.id] ?? nil
-            let group = f.groupId.flatMap { groupsById[$0] }
-            let cadence = f.cadenceDays ?? (group != nil ? group?.cadenceDays : FriendCircle(rawValue: f.circle)?.defaultCadenceDays)
+            let memberOf = (f.groupIds ?? f.groupId.map { [$0] } ?? []).compactMap { groupsById[$0] }
+            let cadence = f.cadenceDays ?? (memberOf.isEmpty
+                ? FriendCircle(rawValue: f.circle)?.defaultCadenceDays
+                : memberOf.compactMap(\.cadenceDays).min())
             let status = Cadence.status(
                 lastContact: last, cadenceDays: cadence, snoozedUntil: f.snoozedUntil,
                 createdAt: f.createdAt, now: now, calendar: calendar)
             let birthday = f.dates.first { $0.label.caseInsensitiveCompare(ImportantDate.birthdayLabel) == .orderedSame }
             return [
-                f.displayName, group?.name ?? f.circle, cadence.map(String.init) ?? "",
+                f.displayName, memberOf.isEmpty ? f.circle : memberOf.map(\.name).joined(separator: "; "), cadence.map(String.init) ?? "",
                 last.map(Self.day) ?? "", Self.statusWord(status),
                 f.tags.joined(separator: ";"), f.location,
                 birthday.map { d in String(format: "%02d-%02d", d.month, d.day) + (d.year.map { "-\($0)" } ?? "") } ?? "",

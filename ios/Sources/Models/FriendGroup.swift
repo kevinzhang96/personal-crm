@@ -14,7 +14,10 @@ final class FriendGroup {
     var cadenceDays: Int?
     var order: Int = 0
     var createdAt: Date = Date()
+    /// Inverse of the one-group-per-friend relationship this app started
+    /// with; only the migration reads it.
     @Relationship(inverse: \Friend.group) var friends: [Friend]?
+    @Relationship(inverse: \Friend.groups) var members: [Friend]?
 
     init(name: String, cadenceDays: Int?, order: Int) {
         self.name = name
@@ -28,5 +31,12 @@ extension FriendGroup {
 
     var cadenceSentence: String { cadenceDays.map { "every \($0)d" } ?? "no nudges" }
 
-    var memberCount: Int { (friends ?? []).filter { !$0.archived }.count }
+    var memberCount: Int { (members ?? []).filter { !$0.archived }.count }
+
+    var memberSentence: String { memberCount == 1 ? "1 person" : "\(memberCount) people" }
+
+    /// Members with no other group — the ones a deletion has to re-home.
+    var soleMembers: [Friend] {
+        (members ?? []).filter { ($0.groups ?? []).count <= 1 }
+    }
 }

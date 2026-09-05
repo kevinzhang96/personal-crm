@@ -35,7 +35,7 @@ struct BulkAddView: View {
     @Query(sort: \Friend.displayName) private var friends: [Friend]
     @Query(sort: \FriendGroup.order) private var groups: [FriendGroup]
     @State private var text = ""
-    @State private var group: FriendGroup?
+    @State private var chosenGroups: Set<UUID> = []
     @State private var tagsText = ""
     @State private var excluded: Set<String> = []
     @State private var adding = false
@@ -63,11 +63,11 @@ struct BulkAddView: View {
                     Button { Task { await add() } } label: {
                         if adding { ProgressView() } else { Text(selected.isEmpty ? "Add" : "Add \(selected.count)") }
                     }
-                    .disabled(adding || selected.isEmpty || group == nil)
+                    .disabled(adding || selected.isEmpty || chosenGroups.isEmpty)
                 }
             }
             .onAppear {
-                group = Groups.defaultGroup(groups)
+                if let home = Groups.defaultGroup(groups) { chosenGroups = [home.id] }
                 if case .names = source { textFocused = true }
             }
         }
@@ -158,7 +158,9 @@ struct BulkAddView: View {
             SectionLabel("Everyone gets")
             ChipStrip(wraps: true) {
                 ForEach(groups) { g in
-                    GlassChip(active: group?.id == g.id, action: { group = g }) {
+                    GlassChip(active: chosenGroups.contains(g.id), action: {
+                        if chosenGroups.contains(g.id) { chosenGroups.remove(g.id) } else { chosenGroups.insert(g.id) }
+                    }) {
                         VStack(spacing: 1) {
                             Text(g.name).font(.subheadline.weight(.semibold))
                             Text(g.cadenceLabel)
@@ -186,7 +188,7 @@ struct BulkAddView: View {
         if case .contacts = source { authorized = await ContactsService.requestAccess() }
         for row in selected {
             let friend = Friend(displayName: row.name)
-            friend.group = group
+            friend.groups = groups.filter { chosenGroups.contains($0.id) }
             friend.tags = tags
             context.insert(friend)
             if let contact = row.contact {

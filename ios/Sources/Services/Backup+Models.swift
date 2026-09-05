@@ -26,7 +26,8 @@ enum Exporter {
         Backup.FriendRecord(
             id: f.id, displayName: f.displayName, givenName: f.givenName, familyName: f.familyName,
             nickname: f.nickname, photoBase64: f.photo?.base64EncodedString(),
-            contactIdentifier: f.contactIdentifier, circle: f.groupName, groupId: f.group?.id, cadenceDays: f.cadenceDays,
+            contactIdentifier: f.contactIdentifier, circle: f.groupNames, groupId: nil,
+            groupIds: f.sortedGroups.map(\.id), starred: f.starred ? true : nil, cadenceDays: f.cadenceDays,
             snoozedUntil: f.snoozedUntil, tags: f.tags, location: f.location,
             timeZoneIdentifier: f.timeZoneIdentifier, howWeMet: f.howWeMet, about: f.about,
             summary: f.summary.isEmpty ? nil : f.summary, summaryUpdatedAt: f.summaryUpdatedAt,
@@ -188,10 +189,17 @@ enum Importer {
             friend.photo = record.photoBase64.flatMap { Data(base64Encoded: $0) }
             friend.contactIdentifier = record.contactIdentifier
             if FriendCircle(rawValue: record.circle) != nil { friend.circleRaw = record.circle }
-            friend.group = record.groupId.flatMap { groupsById[$0] }
-                ?? groupsById.values.first { $0.name.caseInsensitiveCompare(record.circle) == .orderedSame }
-                ?? groupsById.values.first { $0.name == FriendCircle(rawValue: record.circle)?.label }
-                ?? friend.group
+            let ids = record.groupIds ?? record.groupId.map { [$0] } ?? []
+            var memberOf = ids.compactMap { groupsById[$0] }
+            if memberOf.isEmpty {
+                let names = record.circle.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                memberOf = names.compactMap { name in
+                    groupsById.values.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+                        ?? groupsById.values.first { $0.name == FriendCircle(rawValue: name)?.label }
+                }
+            }
+            if !memberOf.isEmpty { friend.groups = memberOf }
+            friend.starred = record.starred ?? false
             friend.cadenceDays = record.cadenceDays
             friend.snoozedUntil = record.snoozedUntil
             friend.tags = record.tags

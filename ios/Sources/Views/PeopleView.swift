@@ -8,7 +8,7 @@ import SwiftUI
 
 struct PeopleView: View {
     enum Filter: Hashable {
-        case all, attention, archived
+        case all, starred, attention, archived
         case group(UUID)
     }
 
@@ -133,13 +133,16 @@ struct PeopleView: View {
             }
             .contextMenu {
                 Button { draft = EntryDraft(friends: [friend]) } label: { Label("Add note", systemImage: "square.and.pencil") }
+                Button { star([friend], !friend.starred) } label: {
+                    Label(friend.starred ? "Unstar" : "Star", systemImage: friend.starred ? "star.slash" : "star")
+                }
                 Menu {
                     ForEach(groups) { g in
-                        Button { move([friend], to: g) } label: {
-                            Label(g.name, systemImage: friend.group?.id == g.id ? "checkmark" : "folder")
+                        Button { toggle([friend], in: g) } label: {
+                            Label(g.name, systemImage: friend.isIn(g) ? "checkmark" : "folder")
                         }
                     }
-                } label: { Label("Move to group", systemImage: "folder") }
+                } label: { Label("Groups", systemImage: "folder") }
                 Button { snooze(friend, weeks: 2) } label: { Label("Snooze 2 weeks", systemImage: "zzz") }
                 Button { archive([friend], !friend.archived) } label: {
                     Label(friend.archived ? "Unarchive" : "Archive", systemImage: "archivebox")
@@ -156,13 +159,21 @@ struct PeopleView: View {
     private func swipeButton(_ action: SwipeAction, _ friend: Friend) -> some View {
         Button {
             switch action {
+            case .select:
+                selected = [friend.id]
+                selecting = true
             case .log: draft = EntryDraft(friends: [friend], kind: .call)
+            case .star: star([friend], !friend.starred)
             case .snooze: snooze(friend, weeks: 2)
             case .archive: archive([friend], !friend.archived)
             case .delete: deleting = friend
             }
         } label: {
-            Label(action == .archive && friend.archived ? "Unarchive" : action.label, systemImage: action.icon)
+            switch action {
+            case .archive where friend.archived: Label("Unarchive", systemImage: action.icon)
+            case .star where friend.starred: Label("Unstar", systemImage: "star.slash")
+            default: Label(action.label, systemImage: action.icon)
+            }
         }
         .tint(action.tint)
     }
@@ -172,6 +183,7 @@ struct PeopleView: View {
     private var chips: some View {
         ChipStrip {
             chip(.all, "All")
+            chip(.starred, "★")
             chip(.attention, "Reach out")
             ForEach(groups) { g in chip(.group(g.id), g.name) }
             if count(.archived) > 0 { chip(.archived, "Archived") }
@@ -197,9 +209,10 @@ struct PeopleView: View {
     private func matches(_ friend: Friend, _ f: Filter) -> Bool {
         switch f {
         case .all: !friend.archived
+        case .starred: !friend.archived && friend.starred
         case .attention: !friend.archived && friend.status(now: now).needsAttention
         case .archived: friend.archived
-        case .group(let id): !friend.archived && friend.group?.id == id
+        case .group(let id): !friend.archived && (friend.groups ?? []).contains { $0.id == id }
         }
     }
 
@@ -208,15 +221,18 @@ struct PeopleView: View {
         let list = friends.filter { friend in
             matches(friend, filter) && (query.isEmpty || friend.searchText.contains(query))
         }
+        // Most overdue first when chasing; otherwise starred first, then by name.
         return filter == .attention
             ? list.sorted { $0.status(now: now).urgency > $1.status(now: now).urgency }
-            : list
+            : list.sorted { ($0.starred ? 0 : 1, $0.displayName) < ($1.starred ? 0 : 1, $1.displayName) }
     }
 
     private var empty: some View {
         switch filter {
         case .attention:
             EmptyPanel(icon: "checkmark.seal", title: "Nobody to chase", hint: "Everyone is within their cadence.")
+        case .starred:
+            EmptyPanel(icon: "star", title: "Nobody starred", hint: "Star people from their page, a swipe, or a long press.")
         case .all:
             EmptyPanel(icon: "person.badge.plus", title: "Add your first friend",
                        hint: "Tap + and pick people from Contacts. Their photos, numbers and birthdays come along.")
@@ -256,20 +272,38 @@ struct PeopleView: View {
 
     private var bulkBar: some View {
         let n = selected.count
+        let people = chosen
         return GlassEffectContainer(spacing: 10) {
             HStack(spacing: 10) {
+                // One entry per group: ticked when everyone chosen is in it;
+                // tapping adds the rest, or removes them all if all are in.
                 Menu {
                     ForEach(groups) { g in
-                        Button { move(chosen, to: g); selected = []; selecting = false } label: { Label(g.name, systemImage: "folder") }
+                        let allIn = !people.isEmpty && people.allSatisfy { $0.isIn(g) }
+                        Button { toggle(people, in: g) } label: {
+                            Label(g.name, systemImage: allIn ? "checkmark" : "folder")
+                        }
                     }
                 } label: {
-                    Label(n == 0 ? "Move" : "Move \(n)", systemImage: "folder")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 3)
+                    HStack(spacing: 6) {
+                        Image(systemName: "folder")
+                        Text(n == 0 ? "Groups" : "Groups · \(n)")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 3)
                 }
                 .glassButton(prominent: true)
+                .disabled(n == 0)
+                Button { star(people, !people.allSatisfy(\.starred)); selected = []; selecting = false } label: {
+                    Image(systemName: people.allSatisfy(\.starred) && !people.isEmpty ? "star.slash" : "star")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.primary)
+                        .padding(.horizontal, 2)
+                        .padding(.vertical, 3)
+                }
+                .glassButton()
                 .disabled(n == 0)
                 Button {
                     let all = chosen
@@ -309,9 +343,28 @@ struct PeopleView: View {
 
     // MARK: actions
 
-    private func move(_ people: [Friend], to group: FriendGroup) {
+    /// Adds everyone to the group, or — when they are all already in it —
+    /// takes them all out. Nobody is left in no group: the default catches
+    /// anyone removed from their last one.
+    private func toggle(_ people: [Friend], in group: FriendGroup) {
+        let allIn = !people.isEmpty && people.allSatisfy { $0.isIn(group) }
         for friend in people {
-            friend.group = group
+            if allIn {
+                friend.groups?.removeAll { $0.id == group.id }
+                if (friend.groups ?? []).isEmpty, let home = Groups.defaultGroup(groups.filter { $0.id != group.id }) {
+                    friend.groups = [home]
+                }
+            } else if !friend.isIn(group) {
+                friend.groups = (friend.groups ?? []) + [group]
+            }
+            friend.updatedAt = now
+        }
+        save()
+    }
+
+    private func star(_ people: [Friend], _ starred: Bool) {
+        for friend in people {
+            friend.starred = starred
             friend.updatedAt = now
         }
         save()
@@ -343,6 +396,6 @@ struct PeopleView: View {
 
 extension Friend {
     var searchText: String {
-        ([displayName, nickname, location, howWeMet, groupName] + tags).joined(separator: " ").lowercased()
+        ([displayName, nickname, location, howWeMet, groupNames] + tags).joined(separator: " ").lowercased()
     }
 }

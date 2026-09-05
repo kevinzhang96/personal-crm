@@ -46,7 +46,11 @@ final class Friend {
     /// The circle this friend was in before groups existed; only the
     /// migration reads it (Services/Groups.swift).
     var circleRaw: String = FriendCircle.friends.rawValue
+    /// The one group a friend had before membership became many; the
+    /// migration moves it into `groups` and clears it.
     var group: FriendGroup?
+    var groups: [FriendGroup]?
+    var starred: Bool = false
     /// Overrides the circle's default cadence when set.
     var cadenceDays: Int?
     /// "Not now": hidden from nudges and the digest until this passes.
@@ -81,15 +85,31 @@ extension Friend {
         set { circleRaw = newValue.rawValue }
     }
 
-    /// The reader's override, else the group's pace; the circle's default
-    /// only for a friend the migration has not reached.
+    /// The reader's override, else the tightest pace among the groups —
+    /// being in Inner means weekly, whatever else they are in; only
+    /// no-nudge groups means never. The circle's default is for a friend
+    /// the migration has not reached.
     var effectiveCadenceDays: Int? {
         if let cadenceDays { return cadenceDays }
+        let current = groups ?? []
+        if !current.isEmpty { return current.compactMap(\.cadenceDays).min() }
         if let group { return group.cadenceDays }
         return circle.defaultCadenceDays
     }
 
-    var groupName: String { group?.name ?? circle.label }
+    var sortedGroups: [FriendGroup] {
+        (groups ?? []).sorted { ($0.order, $0.name) < ($1.order, $1.name) }
+    }
+
+    /// "Inner, College" — the groups, in their order.
+    var groupNames: String {
+        let names = sortedGroups.map(\.name)
+        return names.isEmpty ? (group?.name ?? circle.label) : names.joined(separator: ", ")
+    }
+
+    func isIn(_ group: FriendGroup) -> Bool {
+        (groups ?? []).contains { $0.id == group.id }
+    }
 
     /// Derived from entries, never stored: the newest entry that counts as
     /// actually being in touch (a note about someone is not a conversation).

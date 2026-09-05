@@ -20,10 +20,19 @@ enum Groups {
             }
             groups = all(context: context)
         }
-        let orphans = (try? context.fetch(FetchDescriptor<Friend>(predicate: #Predicate { $0.group == nil }))) ?? []
-        for friend in orphans {
-            let circleName = FriendCircle(rawValue: friend.circleRaw)?.label
-            friend.group = groups.first { $0.name == circleName } ?? defaultGroup(groups)
+        let friends = (try? context.fetch(FetchDescriptor<Friend>())) ?? []
+        for friend in friends {
+            // The single group of an earlier build becomes a membership.
+            if let legacy = friend.group {
+                if !friend.isIn(legacy) { friend.groups = (friend.groups ?? []) + [legacy] }
+                friend.group = nil
+            }
+            if (friend.groups ?? []).isEmpty {
+                let circleName = FriendCircle(rawValue: friend.circleRaw)?.label
+                if let home = groups.first(where: { $0.name == circleName }) ?? defaultGroup(groups) {
+                    friend.groups = [home]
+                }
+            }
         }
         if context.hasChanges { try? context.save() }
     }

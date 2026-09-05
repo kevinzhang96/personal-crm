@@ -41,6 +41,15 @@ struct FriendDetailView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    friend.starred.toggle()
+                    save()
+                } label: {
+                    Image(systemName: friend.starred ? "star.fill" : "star")
+                        .foregroundStyle(friend.starred ? Color.yellow : Color.accentColor)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) { menu }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -91,8 +100,13 @@ struct FriendDetailView: View {
             VStack(spacing: 8) {
                 Avatar(friend: friend, size: 84)
                     .shadow(color: .black.opacity(0.4), radius: 14, y: 8)
-                Text(friend.displayName)
-                    .font(.title2.weight(.bold))
+                HStack(spacing: 6) {
+                    Text(friend.displayName)
+                        .font(.title2.weight(.bold))
+                    if friend.starred {
+                        Image(systemName: "star.fill").foregroundStyle(.yellow)
+                    }
+                }
                 HStack(spacing: 6) {
                     Text(heroMeta).font(.caption).foregroundStyle(.secondary).monospacedDigit()
                     StatusBadge(status: friend.status(now: now))
@@ -103,7 +117,7 @@ struct FriendDetailView: View {
     }
 
     private var heroMeta: String {
-        var parts = [friend.groupName]
+        var parts = [friend.groupNames]
         if let cadence = friend.effectiveCadenceDays { parts.append("every \(cadence)d") }
         if let last = friend.lastContact { parts.append(Dates.since(last, now: now)) }
         if !friend.location.isEmpty { parts.append(friend.location) }

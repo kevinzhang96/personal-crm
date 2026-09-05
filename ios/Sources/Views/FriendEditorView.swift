@@ -91,10 +91,10 @@ struct FriendEditorView: View {
 
     private var circle: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionLabel("Group")
+            SectionLabel("Groups")
             ChipStrip(wraps: true) {
                 ForEach(groups) { g in
-                    GlassChip(active: friend.group?.id == g.id, action: { friend.group = g }) {
+                    GlassChip(active: friend.isIn(g), action: { toggle(g) }) {
                         VStack(spacing: 1) {
                             Text(g.name).font(.subheadline.weight(.semibold))
                             Text(g.cadenceLabel)
@@ -190,10 +190,10 @@ struct FriendEditorView: View {
     // MARK: state
 
     private func load() {
-        if friend.group == nil { friend.group = Groups.defaultGroup(groups) }
+        if (friend.groups ?? []).isEmpty, let home = Groups.defaultGroup(groups) { friend.groups = [home] }
         tagsText = friend.tags.joined(separator: ", ")
         customCadence = friend.cadenceDays != nil
-        cadence = friend.cadenceDays ?? friend.group?.cadenceDays ?? 30
+        cadence = friend.cadenceDays ?? friend.effectiveCadenceDays ?? 30
         if let b = friend.birthday {
             birthdayKnown = true
             yearKnown = b.year != nil
@@ -202,6 +202,14 @@ struct FriendEditorView: View {
             parts.month = b.month
             parts.day = b.day
             birthday = Calendar.current.date(from: parts) ?? Date()
+        }
+    }
+
+    private func toggle(_ group: FriendGroup) {
+        if friend.isIn(group) {
+            friend.groups?.removeAll { $0.id == group.id }
+        } else {
+            friend.groups = (friend.groups ?? []) + [group]
         }
     }
 
@@ -224,6 +232,8 @@ struct FriendEditorView: View {
 
     private func save() {
         friend.displayName = friend.displayName.trimmingCharacters(in: .whitespaces)
+        // Nobody is in no group; a friend cleared of every chip lands in the default.
+        if (friend.groups ?? []).isEmpty, let home = Groups.defaultGroup(groups) { friend.groups = [home] }
         friend.tags = tagsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         friend.cadenceDays = customCadence ? cadence : nil
         // Blank methods are mis-taps on +, not data.

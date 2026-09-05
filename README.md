@@ -18,11 +18,14 @@ Everything stays on the phone. Export is a zip of JSON + CSV + audio.
 - **People**: search, one filter chip per group, long-press preview with
   facts and last notes. Each swipe edge carries one action you choose in
   Settings (log a call, snooze, archive, delete); delete always confirms
-  first. Select turns the list into a checklist: move the ticked people
-  to a group, archive them, or delete them.
+  first. Select turns the list into a checklist: add the ticked people to
+  groups or take them out, star them, archive them, or delete them.
+  Starred people sort first and have their own ★ filter.
 - **Groups**: your own, with a cadence each (the five built-in circles are
-  the starting set). Make, rename, re-pace, reorder and delete them from
-  Settings; deleting a group asks where its people go. Add one by hand, many from Contacts
+  the starting set). A friend can be in several; the tightest cadence
+  among them applies. Make, rename, re-pace, reorder and delete groups
+  from Settings; deleting a group asks where anyone left with no group
+  should go. Add one by hand, many from Contacts
   (multi-select picker), or many by pasting a list of names; both bulk
   paths go through a review sheet that sets the circle and tags for the
   batch and skips anyone already added.

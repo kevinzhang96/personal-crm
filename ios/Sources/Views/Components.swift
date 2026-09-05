@@ -59,9 +59,14 @@ struct FriendRow: View {
         HStack(spacing: 12) {
             Avatar(friend: friend)
             VStack(alignment: .leading, spacing: 3) {
-                Text(friend.displayName.isEmpty ? "Unnamed" : friend.displayName)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(friend.displayName.isEmpty ? "Unnamed" : friend.displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                    if friend.starred {
+                        Image(systemName: "star.fill").font(.caption2).foregroundStyle(.yellow)
+                    }
+                }
                 Text(meta)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -75,7 +80,7 @@ struct FriendRow: View {
     }
 
     private var meta: String {
-        var parts = [friend.groupName]
+        var parts = [friend.groupNames]
         if let last = friend.lastContact {
             parts.append(Dates.since(last, now: now))
         } else {
@@ -194,7 +199,7 @@ struct FriendPreview: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(friend.displayName).font(.headline)
                     HStack(spacing: 6) {
-                        Text(friend.groupName).font(.caption).foregroundStyle(.secondary)
+                        Text(friend.groupNames).font(.caption).foregroundStyle(.secondary)
                         StatusBadge(status: friend.status(now: now))
                     }
                 }

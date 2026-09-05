@@ -161,17 +161,24 @@ counts as contact; `status` = f(lastContact, cadence, snooze, now).
 
 ### Groups
 
-Every friend is in exactly one group, and the group carries the cadence
-its members inherit; `cadenceDays` on the friend overrides it. Groups are
-the reader's own (`FriendGroup`: name, cadence, order). The five circles
+Every friend is in at least one group, and a group carries a cadence;
+a friend in several inherits the tightest of them (being in Inner means
+weekly, whatever else they are in; only no-nudge groups means never), and
+`cadenceDays` on the friend overrides all of it. Groups are the reader's
+own (`FriendGroup`: name, cadence, order). A friend can also be starred —
+a flag with no semantics beyond sorting first and its own filter, which
+is what makes it useful for whatever the reader means by it. The five circles
 of the first design — inner 7d · close 30d · friends 90d · acquaintances
 365d · no nudges — are seeded as the starting groups on first launch and
 are ordinary groups from then on. The invariant that everyone has a
-group is kept by `Services/Groups.swift`: it seeds, and it re-homes any
+group is kept by `Services/Groups.swift`: it seeds, migrates the single
+group of the first groups build into a membership, and re-homes any
 friend without one (a pre-groups install, by the circle it kept; a
-deleted group's people, by the destination chosen at deletion). Bulk
-moves happen from the People list's Select mode; the group manager lives
-in Settings and behind the People "+" menu.
+deleted group's sole members, by the destination chosen at deletion).
+Bulk membership changes happen from the People list's Select mode — one
+menu entry per group, ticked when everyone chosen is in it, tapping adds
+the rest or removes them all; the group manager lives in Settings and
+behind the People "+" menu.
 
 ### Cadence and nudges
 

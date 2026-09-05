@@ -42,7 +42,7 @@ final class SummaryEngine {
     static func input(for friend: Friend) -> SummaryInput {
         SummaryInput(
             name: friend.displayName,
-            circle: friend.groupName,
+            circle: friend.groupNames,
             facts: friend.sortedFacts.map { .init(label: $0.label, value: $0.value) },
             entries: friend.sortedEntries.prefix(HeuristicSummary.maxEntries).map {
                 .init(date: $0.date, kind: $0.kind.label, text: $0.body, countsAsContact: $0.kind.countsAsContact)

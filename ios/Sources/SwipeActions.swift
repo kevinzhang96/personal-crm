@@ -6,7 +6,9 @@
 import SwiftUI
 
 enum SwipeAction: String, CaseIterable, Identifiable {
+    case select
     case log
+    case star
     case snooze
     case archive
     case delete
@@ -17,7 +19,9 @@ enum SwipeAction: String, CaseIterable, Identifiable {
     /// itself in context (an archived friend offers "Unarchive").
     var label: String {
         switch self {
+        case .select: "Select"
         case .log: "Log a call"
+        case .star: "Star"
         case .snooze: "Snooze 2 weeks"
         case .archive: "Archive"
         case .delete: "Delete"
@@ -26,7 +30,9 @@ enum SwipeAction: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
+        case .select: "checkmark.circle"
         case .log: "square.and.pencil"
+        case .star: "star"
         case .snooze: "zzz"
         case .archive: "archivebox"
         case .delete: "trash"
@@ -35,7 +41,9 @@ enum SwipeAction: String, CaseIterable, Identifiable {
 
     var tint: Color {
         switch self {
+        case .select: .gray
         case .log: Theme.accent
+        case .star: .yellow
         case .snooze: .indigo
         case .archive: .gray
         case .delete: .red
@@ -51,7 +59,9 @@ enum SwipeAction: String, CaseIterable, Identifiable {
     // out-of-box assignment exist once.
     static let leadingKey = "swipeLeading"
     static let trailingKey = "swipeTrailing"
-    static let defaultLeading = SwipeAction.log.rawValue
+    /// Swipe right starts a selection with that person ticked; swipe
+    /// left snoozes.
+    static let defaultLeading = SwipeAction.select.rawValue
     static let defaultTrailing = SwipeAction.snooze.rawValue
 
     /// An edge carries one action. The stored form is its raw value, and
