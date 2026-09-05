@@ -22,9 +22,8 @@ struct LogView: View {
                             .plainRow()
                     }
                     ForEach(shown) { entry in
-                        EntryRow(entry: entry, now: now)
-                            .contentShape(Rectangle())
-                            .onTapGesture { draft = EntryDraft(entry: entry) }
+                        Button { draft = EntryDraft(entry: entry) } label: { EntryRow(entry: entry, now: now) }
+                            .buttonStyle(.plain)
                             .plainRow()
                     }
                 }

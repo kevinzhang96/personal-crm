@@ -21,14 +21,17 @@ Everything stays on the phone. Export is a zip of JSON + CSV + audio.
   (multi-select picker), or many by pasting a list of names; both bulk
   paths go through a review sheet that sets the circle and tags for the
   batch and skips anyone already added.
-- **Friend page**: one-tap reach (call / text / FaceTime / WhatsApp menu
-  on a number; Messenger, Instagram, Telegram, Signal, email… as links),
-  facts, follow-ups, dates, timeline. Tapping a reach button asks
-  "did you reach them?" when you come back.
+- **Friend page**: a summary of what to remember right now, rebuilt after
+  every log (written by the on-device model where there is one, composed
+  from facts and recent notes otherwise); one-tap reach (call / text /
+  FaceTime / WhatsApp menu on a number; Messenger, Instagram, Telegram,
+  Signal, email… as links); facts, follow-ups, dates, timeline. Tapping a
+  reach button asks "did you reach them?" when you come back.
 - **Capture**: typed note or voice memo (on-device transcription), or an
   imported audio file. Saving runs the extractor and proposes follow-ups
-  and facts; Apple's on-device language model when the device has one,
-  a deterministic pattern matcher otherwise.
+  and facts — every proposal's wording, date, label and value editable
+  before it is added; Apple's on-device language model when the device
+  has one, a deterministic pattern matcher otherwise.
 - **Nudges**: local notifications only — a morning digest on days someone
   is overdue (next 7 mornings pre-scheduled, background refresh extends),
   follow-ups on their day, birthdays on their day.

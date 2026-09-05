@@ -53,6 +53,9 @@ final class Friend {
     var timeZoneIdentifier: String?
     var howWeMet: String = ""
     var about: String = ""
+    /// What to remember right now, rebuilt after each log (Summaries.swift).
+    var summary: String = ""
+    var summaryUpdatedAt: Date?
     var archived: Bool = false
     var createdAt: Date = Date()
     var updatedAt: Date = Date()

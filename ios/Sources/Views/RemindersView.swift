@@ -26,8 +26,8 @@ struct RemindersView: View {
                     .font(.caption.weight(.semibold))
                 if showDone {
                     ForEach(done.suffix(20).reversed()) { r in
-                        ReminderRow(reminder: r, now: now) { toggle(r) }
-                            .onTapGesture { editing = r }
+                        Button { editing = r } label: { ReminderRow(reminder: r, now: now) { toggle(r) } }
+                            .buttonStyle(.plain)
                     }
                 }
             }
@@ -40,8 +40,8 @@ struct RemindersView: View {
         if !list.isEmpty {
             SectionLabel("\(title) · \(list.count)")
             ForEach(list) { r in
-                ReminderRow(reminder: r, now: now) { toggle(r) }
-                    .onTapGesture { editing = r }
+                Button { editing = r } label: { ReminderRow(reminder: r, now: now) { toggle(r) } }
+                    .buttonStyle(.plain)
             }
         }
     }

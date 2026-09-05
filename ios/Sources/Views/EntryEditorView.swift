@@ -80,7 +80,10 @@ struct EntryEditorView: View {
                 if let file = try? AudioStore.adopt(url) { attach(file, duration: nil) }
             }
             .sheet(item: $suggestions) { batch in
-                SuggestionsSheet(suggestions: batch.items, friends: friends, entry: savedEntry) { dismiss() }
+                SuggestionsSheet(suggestions: batch.items, friends: friends, entry: savedEntry) {
+                    SummaryEngine.shared.refresh(all: friends, context: context)
+                    dismiss()
+                }
             }
             .confirmationDialog("Delete this entry?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete", role: .destructive) {
@@ -299,13 +302,17 @@ struct EntryEditorView: View {
         savedEntry = entry
 
         // Only a first save proposes; re-opening an entry to fix a typo
-        // shouldn't re-ask about the same interview.
+        // shouldn't re-ask about the same interview. The summary rebuilds
+        // once the flow is over — after the suggestions, when there are any,
+        // so what was accepted is in it.
         guard draft.entry == nil, !friends.isEmpty else {
+            SummaryEngine.shared.refresh(all: friends, context: context)
             dismiss()
             return
         }
         let found = await SuggestionEngine.suggestions(for: entry.body)
         if found.isEmpty {
+            SummaryEngine.shared.refresh(all: friends, context: context)
             dismiss()
         } else {
             suggestions = SuggestionBatch(items: found)

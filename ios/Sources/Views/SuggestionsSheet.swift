@@ -1,9 +1,36 @@
-// What the note implied, as a checklist. Everything is on by default and
-// nothing exists until Add; when the entry was with several people, the
-// reader says which one the follow-ups and facts are about.
+// What the note implied, as an editable checklist. Everything is on by
+// default, every word and date can be changed, and nothing exists until
+// Add; when the entry was with several people, the reader says which one
+// the follow-ups and facts are about.
 
 import SwiftData
 import SwiftUI
+
+/// A proposal the reader can rewrite before it becomes a reminder or a fact.
+struct EditableSuggestion: Identifiable {
+    let id: UUID
+    let isFollowUp: Bool
+    /// Follow-up: what to do. Fact: the label.
+    var title: String
+    /// Follow-up: the sentence it came from. Fact: the value.
+    var detail: String
+    var due: Date
+    var selected = true
+
+    init(_ s: Suggestion) {
+        id = s.id
+        isFollowUp = s.isFollowUp
+        title = s.title
+        detail = s.detail
+        due = s.dueDate ?? Date()
+    }
+
+    /// Blank wording is nothing to add, however it was ticked.
+    var complete: Bool {
+        !title.trimmingCharacters(in: .whitespaces).isEmpty
+            && (isFollowUp || !detail.trimmingCharacters(in: .whitespaces).isEmpty)
+    }
+}
 
 struct SuggestionsSheet: View {
     let suggestions: [Suggestion]
@@ -13,7 +40,7 @@ struct SuggestionsSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appearance") private var appearance = Appearance.dark.rawValue
-    @State private var selected: Set<UUID> = []
+    @State private var items: [EditableSuggestion] = []
     @State private var target: Friend?
 
     var body: some View {
@@ -29,17 +56,20 @@ struct SuggestionsSheet: View {
                         }
                     }
                 }
-                let followUps = suggestions.filter(\.isFollowUp)
-                if !followUps.isEmpty {
+                if items.contains(where: \.isFollowUp) {
                     SectionLabel("Follow up")
-                    ForEach(followUps) { row($0) }
+                    ForEach($items) { $item in
+                        if item.isFollowUp { followUpRow($item) }
+                    }
                 }
-                let facts = suggestions.filter { !$0.isFollowUp }
-                if !facts.isEmpty {
+                if items.contains(where: { !$0.isFollowUp }) {
                     SectionLabel("Remember")
-                    ForEach(facts) { row($0) }
+                    ForEach($items) { $item in
+                        if !item.isFollowUp { factRow($item) }
+                    }
                 }
-                Text(SuggestionEngine.usesLanguageModel ? "Found on your device by Apple's language model." : "Found by pattern matching, on your device.")
+                Text((SuggestionEngine.usesLanguageModel ? "Found on your device by Apple's language model. " : "Found by pattern matching, on your device. ")
+                     + "Edit anything before adding.")
                     .font(.caption2).foregroundStyle(.tertiary)
             }
             .navigationTitle("Tend noticed")
@@ -49,12 +79,13 @@ struct SuggestionsSheet: View {
                     Button("Skip") { close() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(selected.isEmpty ? "Add" : "Add \(selected.count)") { accept() }
-                        .disabled(selected.isEmpty || target == nil)
+                    let count = chosen.count
+                    Button(count == 0 ? "Add" : "Add \(count)") { accept() }
+                        .disabled(count == 0 || target == nil)
                 }
             }
             .onAppear {
-                selected = Set(suggestions.map(\.id))
+                items = suggestions.map(EditableSuggestion.init)
                 target = friends.first
             }
         }
@@ -62,53 +93,73 @@ struct SuggestionsSheet: View {
         .interactiveDismissDisabled()
     }
 
-    private func row(_ s: Suggestion) -> some View {
-        let on = selected.contains(s.id)
-        return Button {
-            if on { selected.remove(s.id) } else { selected.insert(s.id) }
-        } label: {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: on ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(on ? Theme.accent : .secondary)
-                VStack(alignment: .leading, spacing: 3) {
-                    if let due = s.dueDate {
-                        Text(s.title).font(.subheadline.weight(.semibold))
-                        Text(due.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
-                            .font(.caption).foregroundStyle(Theme.accent).monospacedDigit()
-                        Text("“\(s.detail)”").font(.caption).foregroundStyle(.tertiary).italic().lineLimit(2)
-                    } else {
-                        (Text(s.title + "  ").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                         + Text(s.detail).font(.subheadline))
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            .panel()
+    private var chosen: [EditableSuggestion] {
+        items.filter { $0.selected && $0.complete }
+    }
+
+    private func checkbox(_ item: Binding<EditableSuggestion>) -> some View {
+        Button { item.wrappedValue.selected.toggle() } label: {
+            Image(systemName: item.wrappedValue.selected ? "checkmark.circle.fill" : "circle")
+                .font(.title3)
+                .foregroundStyle(item.wrappedValue.selected ? Theme.accent : .secondary)
         }
         .buttonStyle(.plain)
     }
 
+    private func followUpRow(_ item: Binding<EditableSuggestion>) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            checkbox(item)
+            VStack(alignment: .leading, spacing: 6) {
+                TextField("What to do", text: item.title)
+                    .font(.subheadline.weight(.semibold))
+                    .textFieldStyle(.plain)
+                DatePicker("When", selection: item.due, displayedComponents: [.date])
+                    .font(.caption)
+                    .tint(Theme.accent)
+                Text("“\(item.wrappedValue.detail)”")
+                    .font(.caption).foregroundStyle(.tertiary).italic().lineLimit(2)
+            }
+        }
+        .panel()
+        .opacity(item.wrappedValue.selected ? 1 : 0.6)
+    }
+
+    private func factRow(_ item: Binding<EditableSuggestion>) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            checkbox(item)
+            TextField("Label", text: item.title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textFieldStyle(.plain)
+                .frame(width: 86)
+            TextField("Value", text: item.detail, axis: .vertical)
+                .font(.subheadline)
+                .textFieldStyle(.plain)
+                .lineLimit(1...3)
+        }
+        .panel()
+        .opacity(item.wrappedValue.selected ? 1 : 0.6)
+    }
+
     private func accept() {
         guard let target else { return }
-        for s in suggestions where selected.contains(s.id) {
-            switch s.kind {
-            case .followUp(let due):
-                let reminder = Reminder(title: s.title, due: due, note: s.detail, kind: .followUp)
+        for item in chosen {
+            let title = item.title.trimmingCharacters(in: .whitespaces)
+            let detail = item.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+            if item.isFollowUp {
+                let reminder = Reminder(title: title, due: item.due, note: detail, kind: .followUp)
                 reminder.friend = target
                 reminder.source = entry
                 context.insert(reminder)
-            case .fact:
-                if let existing = (target.facts ?? []).first(where: { $0.label.caseInsensitiveCompare(s.title) == .orderedSame }) {
-                    existing.value = s.detail
-                    existing.updatedAt = Date()
-                    existing.source = entry
-                } else {
-                    let fact = Fact(label: s.title, value: s.detail)
-                    fact.friend = target
-                    fact.source = entry
-                    context.insert(fact)
-                }
+            } else if let existing = (target.facts ?? []).first(where: { $0.label.caseInsensitiveCompare(title) == .orderedSame }) {
+                existing.value = detail
+                existing.updatedAt = Date()
+                existing.source = entry
+            } else {
+                let fact = Fact(label: title, value: detail)
+                fact.friend = target
+                fact.source = entry
+                context.insert(fact)
             }
         }
         target.updatedAt = Date()

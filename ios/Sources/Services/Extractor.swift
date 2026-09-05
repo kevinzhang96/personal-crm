@@ -43,11 +43,11 @@ struct ExtractedNote {
 @available(iOS 26.0, *)
 @Generable
 struct ExtractedEvent {
-    @Guide(description: "What to do, as a short to-do addressed to me, e.g. 'Ask how the interview went'")
+    @Guide(description: "One imperative sentence telling me what to ask the friend about after this event, naming the event in the note's own words")
     var followUp: String
     @Guide(description: "The event's date as YYYY-MM-DD, resolved against today's date; empty when the note gives no date")
     var eventDate: String
-    @Guide(description: "The sentence from the note that mentions the event")
+    @Guide(description: "The exact sentence from the note that mentions the event, copied verbatim")
     var evidence: String
 }
 
@@ -82,9 +82,15 @@ struct FoundationExtractor: SuggestionExtractor {
         let extracted = try await session.respond(to: prompt, generating: ExtractedNote.self).content
         var out: [Suggestion] = []
         for event in extracted.events where !event.followUp.isEmpty {
+            // A small model fills the slot it was shown: an event whose
+            // evidence is not in the note, or that carries no date and no
+            // event word, is the schema talking, not the friend.
+            guard Self.grounded(event.evidence, in: text) else { continue }
+            let sentenceDate = HeuristicExtractor.date(in: event.evidence, now: now, calendar: calendar)
+            let modelDate = Self.parse(event.eventDate, calendar: calendar)
+            guard sentenceDate != nil || modelDate != nil || HeuristicExtractor.eventTitle(in: event.evidence) != nil else { continue }
             // The sentence itself, resolved here, beats the model's arithmetic.
-            let eventDay = (HeuristicExtractor.date(in: event.evidence, now: now, calendar: calendar)
-                            ?? Self.parse(event.eventDate, calendar: calendar)).map { max($0, now) }
+            let eventDay = (sentenceDate ?? modelDate).map { max($0, now) }
                 ?? calendar.date(byAdding: .day, value: 6, to: now) ?? now
             // A date more than a few days gone is a story, not a follow-up.
             if Dates.daysBetween(eventDay, now, calendar: calendar) > 3 { continue }
@@ -110,6 +116,16 @@ struct FoundationExtractor: SuggestionExtractor {
                                          "not mentioned", "not given", "not stated", "no", "nothing", "tbd", "?"]
         if placeholders.contains(v) { return false }
         return !["not mentioned", "not specified", "unknown", "no information", "doesn't say", "does not say"].contains { v.contains($0) }
+    }
+
+    /// Most of the evidence's words appear in the note: it was quoted, not
+    /// composed.
+    static func grounded(_ evidence: String, in text: String) -> Bool {
+        let words = evidence.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count > 2 }
+        guard words.count >= 2 else { return false }
+        let haystack = text.lowercased()
+        let hits = words.filter { haystack.contains($0) }.count
+        return hits * 10 >= words.count * 7
     }
 
     private static func parse(_ ymd: String, calendar: Calendar) -> Date? {

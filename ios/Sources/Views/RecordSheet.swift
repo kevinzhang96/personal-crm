@@ -47,18 +47,16 @@ struct RecordSheet: View {
                             if let r = recorder.stop() { AudioStore.delete(r.file) }
                             dismiss()
                         } label: {
-                            Text("Cancel").font(.subheadline.weight(.semibold)).padding(.horizontal, 22).padding(.vertical, 12)
+                            Text("Cancel").font(.subheadline.weight(.semibold)).foregroundStyle(.primary).padding(.horizontal, 10).padding(.vertical, 4)
                         }
-                        .buttonStyle(.plain)
-                        .glassEffect(.regular.interactive(), in: .capsule)
+                        .glassButton()
                         Button {
                             if let r = recorder.stop() { onFinish(r.file, r.duration) }
                             dismiss()
                         } label: {
-                            Label("Done", systemImage: "stop.fill").font(.subheadline.weight(.bold)).padding(.horizontal, 26).padding(.vertical, 12)
+                            Label("Done", systemImage: "stop.fill").font(.subheadline.weight(.bold)).padding(.horizontal, 14).padding(.vertical, 4)
                         }
-                        .buttonStyle(.plain)
-                        .glassEffect(.regular.tint(Theme.accent).interactive(), in: .capsule)
+                        .glassButton(prominent: true)
                         .disabled(!recorder.isRecording)
                     }
                 }

@@ -207,6 +207,24 @@ Two implementations behind one protocol, tried in order:
    near a date proposes "check in the day after"; "partner/wife/husband/
    kids/works at" patterns propose facts. Deterministic, tested.
 
+Proposals are editable in the sheet — wording and date of a follow-up,
+label and value of a fact — because the model's phrasing is a draft, not
+a verdict. Two guards on the model path, both learned from use: the
+schema descriptions carry no example text, since a small model copies an
+example into every answer ("Ask how the interview went" appeared on notes
+about anything); and an event is kept only if its evidence sentence is
+actually in the note and it carries a date or an event word.
+
+### Summary
+
+Each friend carries a short summary of what to remember right now,
+rebuilt after each log is filed (after the suggestions sheet, so what was
+accepted is in it) and on demand from the friend page. The on-device
+model writes two to four sentences from a dated brief of facts, the
+newest notes and open follow-ups (`Logic/Summary.swift` builds the brief,
+bounded to twelve notes of 400 characters); without a model the same
+brief is composed by hand into standing · facts · lately · up next.
+
 ### Interaction capture
 
 - **Quick note**: text + kind + friends + date; kind defaults to `note`.

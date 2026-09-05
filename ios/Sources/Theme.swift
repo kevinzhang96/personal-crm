@@ -90,6 +90,20 @@ extension View {
     }
 }
 
+/// The system glass button styles, rather than a plain button under a
+/// glass effect: the effect's own press handling competed with the
+/// button's, and a finger that drifted a point while tapping lost.
+extension View {
+    @ViewBuilder
+    func glassButton(prominent: Bool = false, tint: Color = Theme.accent, shape: ButtonBorderShape = .capsule) -> some View {
+        if prominent {
+            buttonStyle(.glassProminent).buttonBorderShape(shape).tint(tint)
+        } else {
+            buttonStyle(.glass).buttonBorderShape(shape)
+        }
+    }
+}
+
 /// The app's glass capsule: a circle filter, an entry kind, a choice.
 /// Tinted when it is the active choice, plain glass otherwise.
 struct GlassChip<Label: View>: View {
@@ -98,14 +112,31 @@ struct GlassChip<Label: View>: View {
     @ViewBuilder let label: Label
 
     var body: some View {
+        // Plain glass tints its label like a link; a chip is a label.
         Button(action: action) {
             label
-                .padding(.horizontal, 13)
-                .padding(.vertical, 7)
+                .padding(.horizontal, 2)
+                .foregroundStyle(active ? Color.white : Color.primary)
         }
-        .buttonStyle(.plain)
-        .glassEffect(active ? .regular.tint(Theme.accent).interactive() : .regular.interactive(),
-                     in: .capsule)
+        .glassButton(prominent: active)
+    }
+}
+
+/// A floating glass circle — the 2–3 global actions of a screen, placed
+/// by overlay so they survive search-bar collapse.
+struct GlassCircle: View {
+    let icon: String
+    var tint: Color? = nil
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(tint == nil ? Color.primary : Color.white)
+                .frame(width: 26, height: 26)
+        }
+        .glassButton(prominent: tint != nil, tint: tint ?? Theme.accent, shape: .circle)
     }
 }
 
@@ -166,25 +197,6 @@ struct FlowLayout: Layout {
             x += size.width + spacing
             row = max(row, size.height)
         }
-    }
-}
-
-/// A floating glass circle — the 2–3 global actions of a screen, placed
-/// by overlay so they survive search-bar collapse.
-struct GlassCircle: View {
-    let icon: String
-    var tint: Color? = nil
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(tint == nil ? AnyShapeStyle(.primary) : AnyShapeStyle(.white))
-                .frame(width: 46, height: 46)
-        }
-        .buttonStyle(.plain)
-        .glassEffect(tint.map { .regular.tint($0).interactive() } ?? .regular.interactive(), in: .circle)
     }
 }
 

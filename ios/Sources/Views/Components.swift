@@ -199,6 +199,9 @@ struct FriendPreview: View {
                     }
                 }
             }
+            if !friend.summary.isEmpty {
+                Text(friend.summary).font(.caption).lineLimit(5)
+            }
             let facts = friend.sortedFacts.prefix(3)
             if !facts.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {

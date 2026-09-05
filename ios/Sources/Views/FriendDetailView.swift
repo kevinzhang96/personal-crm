@@ -18,6 +18,7 @@ struct FriendDetailView: View {
     @State private var confirmDelete = false
     @State private var refreshNote: String?
     @State private var player = Player()
+    @State private var engine = SummaryEngine.shared
     private let now = Date()
 
     var body: some View {
@@ -28,6 +29,7 @@ struct FriendDetailView: View {
                     hero
                     reach
                     if case .snoozed(let until) = friend.status(now: now) { snoozed(until) }
+                    summary
                     about
                     followUps
                     dates
@@ -138,6 +140,37 @@ struct FriendDetailView: View {
         .panel()
     }
 
+    /// What to remember right now — rebuilt after each log, or on demand.
+    private var summary: some View {
+        let updating = engine.inFlight.contains(friend.id)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                SectionLabel("Summary")
+                Spacer()
+                if updating {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button { Task { await engine.refresh(friend, context: context) } } label: {
+                        Image(systemName: "arrow.clockwise").font(.caption.weight(.bold))
+                    }
+                }
+            }
+            if !friend.summary.isEmpty {
+                Text(friend.summary).font(.subheadline)
+                if let at = friend.summaryUpdatedAt {
+                    Text("Updated \(Dates.since(at, now: now)) · \(SuggestionEngine.usesLanguageModel ? "written on your device" : "from your notes")")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+            } else if updating {
+                Text("Writing…").font(.footnote).foregroundStyle(.tertiary)
+            } else {
+                Text("Builds itself after each log. Tap ↻ to write one now from what's here.")
+                    .font(.footnote).foregroundStyle(.tertiary)
+            }
+        }
+        .panel()
+    }
+
     private var about: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -195,22 +228,24 @@ struct FriendDetailView: View {
                 Text("Nothing pending.").font(.footnote).foregroundStyle(.tertiary)
             }
             ForEach(open) { reminder in
-                HStack(alignment: .top, spacing: 10) {
-                    Button {
-                        reminder.done = true
-                        reminder.doneAt = now
-                        save()
-                    } label: { Image(systemName: "circle").foregroundStyle(.secondary) }
-                    .buttonStyle(.plain)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(reminder.title).font(.subheadline.weight(.semibold))
-                        Text(Dates.until(reminder.due, now: now) + " · " + reminder.due.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
-                            .font(.caption).foregroundStyle(reminder.due < now ? Theme.warn : .secondary).monospacedDigit()
+                Button { editingReminder = reminder } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                        Button {
+                            reminder.done = true
+                            reminder.doneAt = now
+                            save()
+                        } label: { Image(systemName: "circle").foregroundStyle(.secondary) }
+                        .buttonStyle(.plain)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(reminder.title).font(.subheadline.weight(.semibold))
+                            Text(Dates.until(reminder.due, now: now) + " · " + reminder.due.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                                .font(.caption).foregroundStyle(reminder.due < now ? Theme.warn : .secondary).monospacedDigit()
+                        }
+                        Spacer(minLength: 0)
                     }
-                    Spacer(minLength: 0)
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
-                .onTapGesture { editingReminder = reminder }
+                .buttonStyle(.plain)
             }
         }
         .panel()
@@ -245,8 +280,10 @@ struct FriendDetailView: View {
                        hint: "After you talk, tap the pencil or the mic. Notes that mention an upcoming event turn into follow-ups.")
         }
         ForEach(entries) { entry in
-            EntryRow(entry: entry, showFriends: false, now: now)
-                .onTapGesture { draft = EntryDraft(entry: entry) }
+            Button { draft = EntryDraft(entry: entry) } label: {
+                EntryRow(entry: entry, showFriends: false, now: now)
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -259,8 +296,9 @@ struct FriendDetailView: View {
                 Button("1 month") { snooze(weeks: 4) }
             } label: { Label("Snooze nudges", systemImage: "zzz") }
             if friend.contactIdentifier != nil {
-                Button { refreshFromContacts() } label: { Label("Refresh from Contacts", systemImage: "arrow.clockwise") }
+                Button { refreshFromContacts() } label: { Label("Refresh from Contacts", systemImage: "person.crop.circle.badge.checkmark") }
             }
+            Button { Task { await engine.refresh(friend, context: context) } } label: { Label("Rebuild summary", systemImage: "text.badge.checkmark") }
             Button { friend.archived.toggle(); save() } label: {
                 Label(friend.archived ? "Unarchive" : "Archive", systemImage: "archivebox")
             }
@@ -329,8 +367,7 @@ struct MethodButton: View {
                 Button { copy() } label: { face }
             }
         }
-        .buttonStyle(.plain)
-        .glassEffect(method.preferred ? .regular.tint(Theme.accent).interactive() : .regular.interactive(), in: .capsule)
+        .glassButton(prominent: method.preferred)
         .sensoryFeedback(.success, trigger: copied)
     }
 
@@ -341,8 +378,9 @@ struct MethodButton: View {
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(1)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 2)
+        .padding(.vertical, 3)
+        .foregroundStyle(method.preferred ? Color.white : Color.primary)
     }
 
     private func copy() {

@@ -27,6 +27,7 @@ enum Exporter {
             contactIdentifier: f.contactIdentifier, circle: f.circleRaw, cadenceDays: f.cadenceDays,
             snoozedUntil: f.snoozedUntil, tags: f.tags, location: f.location,
             timeZoneIdentifier: f.timeZoneIdentifier, howWeMet: f.howWeMet, about: f.about,
+            summary: f.summary.isEmpty ? nil : f.summary, summaryUpdatedAt: f.summaryUpdatedAt,
             archived: f.archived, createdAt: f.createdAt, updatedAt: f.updatedAt,
             methods: (f.methods ?? []).map {
                 Backup.MethodRecord(id: $0.id, kind: $0.kindRaw, value: $0.value, label: $0.label, preferred: $0.preferred)
@@ -175,6 +176,8 @@ enum Importer {
             friend.timeZoneIdentifier = record.timeZoneIdentifier
             friend.howWeMet = record.howWeMet
             friend.about = record.about
+            friend.summary = record.summary ?? ""
+            friend.summaryUpdatedAt = record.summaryUpdatedAt
             friend.archived = record.archived
             friend.createdAt = record.createdAt
             friend.updatedAt = record.updatedAt

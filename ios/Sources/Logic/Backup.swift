@@ -29,6 +29,8 @@ struct Backup: Codable, Equatable {
         var timeZoneIdentifier: String?
         var howWeMet: String = ""
         var about: String = ""
+        var summary: String?
+        var summaryUpdatedAt: Date?
         var archived: Bool = false
         var createdAt: Date
         var updatedAt: Date

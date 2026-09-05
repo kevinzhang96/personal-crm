@@ -80,8 +80,10 @@ struct TodayView: View {
                        hint: "Follow-ups come from notes — mention an interview next Thursday and Tend will offer to remind you Friday.")
         } else {
             ForEach(soon) { reminder in
-                ReminderRow(reminder: reminder, now: now) { complete(reminder) }
-                    .onTapGesture { editingReminder = reminder }
+                Button { editingReminder = reminder } label: {
+                    ReminderRow(reminder: reminder, now: now) { complete(reminder) }
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -121,8 +123,8 @@ struct TodayView: View {
         if !entries.isEmpty {
             SectionLabel("Recent")
             ForEach(entries.prefix(5)) { entry in
-                EntryRow(entry: entry, now: now)
-                    .onTapGesture { draft = EntryDraft(entry: entry) }
+                Button { draft = EntryDraft(entry: entry) } label: { EntryRow(entry: entry, now: now) }
+                    .buttonStyle(.plain)
             }
         }
     }

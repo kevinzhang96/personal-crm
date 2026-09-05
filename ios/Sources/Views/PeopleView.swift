@@ -42,9 +42,11 @@ struct PeopleView: View {
         NavigationStack {
             ZStack {
                 Theme.background
+                VStack(spacing: 0) {
+                chips
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
                 List {
-                    chips
-                        .plainRow(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
                     if shown.isEmpty {
                         empty.plainRow()
                     }
@@ -74,6 +76,7 @@ struct PeopleView: View {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .contentMargins(.bottom, 90, for: .scrollContent)
+                }
             }
             .navigationTitle("People")
             .searchable(text: $search, prompt: "Names, tags, places…")
@@ -91,9 +94,9 @@ struct PeopleView: View {
                     Image(systemName: "plus")
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(.white)
-                        .frame(width: 46, height: 46)
+                        .frame(width: 26, height: 26)
                 }
-                .glassEffect(.regular.tint(Theme.accent).interactive(), in: .circle)
+                .glassButton(prominent: true, shape: .circle)
                 .padding(.trailing, 18)
                 .padding(.bottom, 18)
             }
