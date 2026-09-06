@@ -29,6 +29,9 @@ struct JudgeOutcome: Equatable {
     /// The judge had nothing against what is left. False at the cap,
     /// when the judge could not answer, and when there was no judge.
     var approved: Bool
+    /// Whether the language model was the proposer — set by the shell,
+    /// which knows; the sheet tells the reader where a proposal came from.
+    var modelled = false
 
     static let empty = JudgeOutcome(suggestions: [], rounds: 0, rejected: [], approved: false)
 }

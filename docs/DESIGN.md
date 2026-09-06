@@ -303,9 +303,21 @@ brief is composed by hand into standing · facts · lately · up next.
 
 ### Interaction capture
 
+A new log asks *who* before anything else. The pencil opens a sheet whose
+search field is focused as it arrives — the keyboard is up before the
+sheet has settled — with the people logged most recently at the top and
+everyone else below; typing narrows by name first, then anything else
+about the person, and Return picks the first match. Choosing someone
+slides the editor in with the cursor already in the words. "Just a
+note" skips the question for a note about nobody in particular, and a
+log started from a person's page or row skips it because the answer is
+known. The editor's "with" row still opens the multi-picker, which is
+how a dinner with four friends gets its other three.
+
 - **Quick note**: text + kind + friends + date; kind defaults to `note`.
-- **Voice memo**: AVAudioRecorder → `.m4a` in `Documents/audio/`; then the
-  transcriber fills `transcript`, which the user can edit into `text`.
+- **Voice memo**: AVAudioRecorder → `.m4a` in `Documents/audio/`; the
+  who-question comes next while the transcriber fills `transcript`, which
+  the user can edit into `text`.
 - **Import audio**: file importer (e.g., an Apple call recording exported
   from Notes) → same path as a voice memo.
 - **After a tap on a contact method**: the app records a pending attempt;

@@ -258,7 +258,9 @@ struct CaptureButtons: View {
         GlassEffectContainer(spacing: 12) {
             VStack(spacing: 12) {
                 GlassCircle(icon: "mic.fill", action: onRecord)
+                    .accessibilityLabel("Record")
                 GlassCircle(icon: "square.and.pencil", tint: Theme.accent, action: onNote)
+                    .accessibilityLabel("New note")
             }
         }
         .padding(.trailing, 18)

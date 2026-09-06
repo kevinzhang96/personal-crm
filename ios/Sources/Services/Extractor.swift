@@ -52,7 +52,8 @@ enum SuggestionEngine {
         if #available(iOS 26.0, *), FoundationProposer.isAvailable {
             let proposer = FoundationProposer(instructions: settings.extractorPrompt)
             let judge = settings.judgeEnabled ? FoundationJudge(instructions: settings.judgePrompt) : nil
-            if let outcome = try? await loop.run(note: trimmed, now: now, proposer: proposer, judge: judge, progress: progress) {
+            if var outcome = try? await loop.run(note: trimmed, now: now, proposer: proposer, judge: judge, progress: progress) {
+                outcome.modelled = true
                 return outcome
             }
         }
@@ -177,10 +178,7 @@ final class FoundationProposer: SuggestionProposer {
     private func suggestions(from extracted: ExtractedNote, now: Date) -> [Suggestion] {
         var out: [Suggestion] = []
         for event in extracted.events where !event.followUp.isEmpty {
-            let eventDay = Self.parse(event.eventDate, calendar: calendar).map { max($0, now) }
-                ?? calendar.date(byAdding: .day, value: 6, to: now) ?? now
-            let nextDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: eventDay)) ?? eventDay
-            let due = Dates.at(hour: HeuristicExtractor.followUpHour, on: nextDay, calendar: calendar)
+            let due = HeuristicExtractor.followUpDue(after: Self.parse(event.eventDate, calendar: calendar), now: now, calendar: calendar)
             out.append(.followUp(event.followUp, due: due, because: event.evidence))
         }
         for fact in extracted.facts {
