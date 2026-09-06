@@ -58,11 +58,22 @@ enum Grounding {
     private static func vetFollowUp(_ s: Suggestion, note: String, noteWords: Set<String>, now: Date, calendar: Calendar) -> Verdict {
         let evidence = s.detail
         guard grounded(evidence, in: note) else { return .drop("the evidence sentence isn't in the note") }
+        let range = NSRange(evidence.startIndex..., in: evidence)
+        guard HeuristicExtractor.aboutSelf.firstMatch(in: evidence, range: range) == nil else {
+            return .drop("the sentence is about the note-writer")
+        }
         let canonical = HeuristicExtractor.eventTitle(in: evidence)
         let sentenceDay = HeuristicExtractor.date(in: evidence, now: now, calendar: calendar)
         guard canonical != nil || sentenceDay != nil else { return .drop("the sentence names no event and no day") }
         if let sentenceDay, Dates.daysBetween(sentenceDay, now, calendar: calendar) > 3 {
             return .drop("the event is already past")
+        }
+        if bygoneYear.firstMatch(in: evidence, range: range).flatMap({ Range($0.range, in: evidence) })
+            .flatMap({ Int(evidence[$0]) }).map({ $0 < calendar.component(.year, from: now) }) == true {
+            return .drop("the event is already past")
+        }
+        if sentenceDay == nil, hedge.firstMatch(in: evidence, range: range) != nil {
+            return .drop("the note only wonders about it")
         }
 
         // The sentence's own day, resolved here, beats the proposer's
@@ -106,6 +117,7 @@ enum Grounding {
         guard !words(label).contains(where: { notAFact.contains($0) }) else {
             return .drop("a mood, plan or opinion is a guess, not a fact")
         }
+        guard HeuristicExtractor.eventTitle(in: label) == nil else { return .drop("an event is not a fact") }
         guard isReal(value) else { return .drop("the value is a placeholder") }
         guard value.count <= 100, words(value).count <= 8 else { return .drop("the value is a passage, not a detail") }
         guard normalized(value) != normalized(label) else { return .drop("the value repeats the label") }
@@ -153,6 +165,15 @@ enum Grounding {
         guard word.count >= 4 else { return false }
         return noteWords.contains { $0.count >= 4 && ($0.hasPrefix(word) || word.hasPrefix($0)) }
     }
+
+    /// A year before this one, in a sentence: what it describes has happened.
+    private static let bygoneYear = try! NSRegularExpression(pattern: "\\b(19|20)\\d\\d\\b")
+
+    /// An event the note only floats; without a day it is not something
+    /// to ask about afterwards.
+    private static let hedge = try! NSRegularExpression(
+        pattern: "\\b(might|maybe|perhaps|possibly|at some point|sometime|someday|one day|thinking about|thinking of|considering|hopefully|if (she|he|they) can|no plans?)\\b",
+        options: .caseInsensitive)
 
     private static let placeholders: Set<String> = [
         "none", "n/a", "na", "nil", "null", "unknown", "unspecified", "not specified", "not mentioned", "not given",

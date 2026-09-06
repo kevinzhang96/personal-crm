@@ -287,6 +287,17 @@ Settings carries the two prompts, the judge toggle and the round count as
 device preferences (`SuggestionSettings`), each resettable to its default
 (`Logic/Prompts.swift`); the sheet says how many proposals were set aside.
 
+The prompts are tuned against a labelled corpus (`Tests/PromptCorpus.swift`:
+realistic notes, most with nothing to extract, plus the traps — the
+partner's employer, the note-writer's own interview, a marathon in 2019,
+"might look for a job at some point", "our dinner"). Two tests run every
+time: the heuristic must propose nothing the corpus doesn't ask for, and
+an eager stand-in proposer that makes every old mistake on purpose must
+come out clean after the rules and a judge applying the judge prompt's
+criteria; what gets past the rules alone is exactly what the judge prompt
+names. A third test, opt-in with `TEND_MODEL_EVAL=1`, runs the corpus
+through the real on-device model and writes a per-round trace.
+
 Proposals are editable in the sheet — wording and date of a follow-up,
 label and value of a fact — because the model's phrasing is a draft, not
 a verdict.

@@ -57,14 +57,15 @@ struct SuggestionTests {
         let out = extractor.suggestions(for: "Her husband Marco just started at Anthropic. They moved to Oakland last month. Their daughter is called Lu.", now: now)
         let facts = out.filter { !$0.isFollowUp }.map { ($0.title, $0.detail) }
         #expect(facts.contains { $0 == ("Partner", "Marco") })
-        #expect(facts.contains { $0 == ("Works at", "Anthropic") })
+        // The husband's employer is his, not hers.
+        #expect(!facts.contains { $0.0 == "Works at" })
         #expect(facts.contains { $0 == ("Lives in", "Oakland") })
         #expect(facts.contains { $0 == ("Kids", "Lu") })
     }
 
     @Test("gift ideas and pets and allergies")
     func moreFacts() {
-        let out = extractor.suggestions(for: "He's been wanting a pour-over kettle. Got a puppy named Biscuit. Allergic to shellfish and peanuts.", now: now)
+        let out = extractor.suggestions(for: "He's been wanting a pour-over kettle for ages. Got a puppy named Biscuit. Allergic to shellfish and peanuts.", now: now)
         let facts = out.filter { !$0.isFollowUp }.map { ($0.title, $0.detail) }
         #expect(facts.contains { $0 == ("Gift idea", "pour-over kettle") })
         #expect(facts.contains { $0 == ("Pets", "Biscuit (puppy)") })

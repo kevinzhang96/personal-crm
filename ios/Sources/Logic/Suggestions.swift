@@ -181,7 +181,11 @@ struct HeuristicExtractor: SuggestionProposer {
 
     static func facts(in sentence: String) -> [Suggestion] {
         let range = NSRange(sentence.startIndex..., in: sentence)
+        // A sentence about someone in the friend's life states facts about
+        // that person; only the relationship itself is the friend's.
+        let aboutSomeoneElse = someoneElse.firstMatch(in: sentence, range: range) != nil
         return factPatterns.compactMap { rule in
+            if aboutSomeoneElse, !relationshipLabels.contains(rule.label) { return nil }
             guard let match = rule.pattern.firstMatch(in: sentence, range: range) else { return nil }
             let groups = (1..<match.numberOfRanges).compactMap { i -> String? in
                 guard let r = Range(match.range(at: i), in: sentence) else { return nil }
@@ -234,8 +238,15 @@ struct HeuristicExtractor: SuggestionProposer {
         options: .caseInsensitive)
 
     /// A sentence the note-writer opens about themselves.
-    private static let aboutSelf = try! NSRegularExpression(
+    static let aboutSelf = try! NSRegularExpression(
         pattern: "^\\W*(I|I'm|I’m|I've|I’ve|I'll|I’ll|My)\\b", options: [])
+
+    /// A partner, a parent, a sibling, a boss: their employer, city and
+    /// allergies are theirs, not the friend's.
+    private static let someoneElse = try! NSRegularExpression(
+        pattern: "\\b(her|his|their) (husband|wife|partner|boyfriend|girlfriend|fianc[ée]e?|spouse|mom|mum|mother|dad|father|parents?|brother|sister|son|daughter|kids?|children|boss|manager|roommate|cousin|colleague|coworker|co-worker)\\b",
+        options: .caseInsensitive)
+    private static let relationshipLabels: Set<String> = ["Partner", "Kids", "Pets"]
 
     private struct FactRule {
         let pattern: NSRegularExpression
@@ -264,8 +275,10 @@ struct HeuristicExtractor: SuggestionProposer {
         FactRule("(?i:got|adopted|rescued) (?i:a |an )?(?i:new )?((?i:puppy|dog|cat|kitten|rabbit|parrot))(?: (?i:named|called) (\(name)))?", "Pets") { groups in
             groups.count > 1 ? "\(groups[1]) (\(groups[0].lowercased()))" : groups.first?.lowercased()
         },
-        FactRule("(?i:been wanting|has been eyeing|really wants|would love) (?i:a|an|the) ([a-z][^.!?,;]{2,40})", "Gift idea"),
+        FactRule("(?i:been wanting|has been eyeing|really wants|would love) (?i:a|an|the) ([a-z][^.!?,;]{2,40}?)(?=\\s+(?i:for|since|because|but|and|so)\\b|[.!?,;]|$)", "Gift idea"),
     ]
+
+    static func words(_ text: String) -> [String] { Grounding.words(text) }
 
     static func sentences(_ text: String) -> [String] {
         var out: [String] = []

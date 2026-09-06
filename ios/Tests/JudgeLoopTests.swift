@@ -141,7 +141,7 @@ struct JudgeLoopTests {
     @Test("the heuristic is a proposer with no second draft in it")
     func heuristicAsProposer() async throws {
         let out = try await loop.run(note: note, now: now, proposer: HeuristicExtractor(calendar: calendar), judge: Judge([[]]))
-        #expect(out.suggestions.map(\.title) == ["Ask how the interview went", "Partner", "Works at"])
+        #expect(out.suggestions.map(\.title) == ["Ask how the interview went", "Partner"])
         #expect(out.approved)
     }
 }

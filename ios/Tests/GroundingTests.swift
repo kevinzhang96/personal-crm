@@ -63,6 +63,24 @@ struct GroundingTests {
         #expect(Grounding.vet(stale, note: undated, now: now, calendar: calendar) == .drop("the day to follow up has passed"))
     }
 
+    @Test("the model path gets the rules the heuristic already had: the note-writer's own sentence, a year gone by, a hedge")
+    func modelPathRules() {
+        let mine = "I have an interview on Monday and asked him for tips."
+        let own = Suggestion.followUp("Ask how the interview went", due: day(9, 8), because: mine)
+        #expect(Grounding.vet(own, note: mine, now: now, calendar: calendar) == .drop("the sentence is about the note-writer"))
+        let story = "We talked about the marathon she ran in 2019 and how she's been lazy since."
+        let old = Suggestion.followUp("Ask how the marathon went", due: day(9, 12), because: story)
+        #expect(Grounding.vet(old, note: story, now: now, calendar: calendar) == .drop("the event is already past"))
+        let floated = "He mentioned he might look for a new job at some point, nothing concrete."
+        let maybe = Suggestion.followUp("Ask how the new job is going", due: day(9, 12), because: floated)
+        #expect(Grounding.vet(maybe, note: floated, now: now, calendar: calendar) == .drop("the note only wonders about it"))
+        let dated = "She might do the marathon next Saturday."
+        let hedgedButDated = Suggestion.followUp("Ask how the race went", due: day(9, 13), because: dated)
+        #expect(review([hedgedButDated], note: dated).kept.count == 1)
+        let event = Suggestion.fact("Interview", "Figma")
+        #expect(Grounding.vet(event, note: "Her interview at Figma is next week.", now: now, calendar: calendar) == .drop("an event is not a fact"))
+    }
+
     // MARK: wording
 
     @Test("wording that strays from the note falls back to the event's own line, or is dropped when there is none")
