@@ -1,60 +1,11 @@
-// The bridge to the phone's address book: pick a contact, and copy what
-// it knows into a friend. One-way — nothing is ever written to Contacts.
+// The bridge to the phone's address book: read who is there, and copy
+// what it knows into a friend. One-way — nothing is ever written to
+// Contacts. Views/ContactsSheet.swift is the choosing.
 
 import Contacts
 import ContactsUI
 import SwiftData
 import SwiftUI
-
-struct ContactPicker: UIViewControllerRepresentable {
-    let onPick: (CNContact) -> Void
-
-    func makeUIViewController(context: Context) -> CNContactPickerViewController {
-        let picker = CNContactPickerViewController()
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: CNContactPickerViewController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
-
-    final class Coordinator: NSObject, CNContactPickerDelegate {
-        let onPick: (CNContact) -> Void
-        init(onPick: @escaping (CNContact) -> Void) { self.onPick = onPick }
-
-        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
-            onPick(contact)
-        }
-    }
-}
-
-/// The same picker, in the mode where the delegate takes a list: that is
-/// what makes CNContactPickerViewController offer multi-select. A
-/// separate type rather than a flag, because the mode is decided by
-/// which delegate method exists, not by what it does.
-struct ContactsMultiPicker: UIViewControllerRepresentable {
-    let onPick: ([CNContact]) -> Void
-
-    func makeUIViewController(context: Context) -> CNContactPickerViewController {
-        let picker = CNContactPickerViewController()
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: CNContactPickerViewController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
-
-    final class Coordinator: NSObject, CNContactPickerDelegate {
-        let onPick: ([CNContact]) -> Void
-        init(onPick: @escaping ([CNContact]) -> Void) { self.onPick = onPick }
-
-        func contactPicker(_ picker: CNContactPickerViewController, didSelect contacts: [CNContact]) {
-            onPick(contacts)
-        }
-    }
-}
 
 enum ContactsService {
     /// What to call someone the picker handed over: their name, failing
@@ -90,9 +41,21 @@ enum ContactsService {
         CNContactPostalAddressesKey as CNKeyDescriptor,
     ]
 
+    static var status: CNAuthorizationStatus { CNContactStore.authorizationStatus(for: .contacts) }
+
     static var authorized: Bool {
-        let status = CNContactStore.authorizationStatus(for: .contacts)
-        return status == .authorized || status == .limited
+        status == .authorized || status == .limited
+    }
+
+    /// Everyone the app may see — all of them, or the shared few under
+    /// limited access — in the address book's own order, with every key
+    /// `apply` reads, so a pick needs no second fetch.
+    static func all() throws -> [CNContact] {
+        let request = CNContactFetchRequest(keysToFetch: keys)
+        request.sortOrder = .userDefault
+        var out: [CNContact] = []
+        try CNContactStore().enumerateContacts(with: request) { contact, _ in out.append(contact) }
+        return out
     }
 
     static func requestAccess() async -> Bool {

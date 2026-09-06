@@ -21,6 +21,7 @@ struct PeopleView: View {
     @State private var draft: EntryDraft?
     @State private var pickingContacts = false
     @State private var picked: [CNContact] = []
+    @State private var manualAfterPick = false
     @State private var bulk: BulkAddView.Source?
     @State private var showGroups = false
     @State private var deleting: Friend?
@@ -128,16 +129,17 @@ struct PeopleView: View {
             }
             .sheet(item: $newFriend) { FriendEditorView(friend: $0, isNew: true) }
             .sheet(item: $draft) { EntryEditorView(draft: $0) }
-            // The picker's own dismissal has to finish before the review
-            // sheet can be presented, so the hand-off rides onDismiss.
+            // The sheet's own dismissal has to finish before the next one
+            // can be presented, so both hand-offs ride onDismiss.
             .sheet(isPresented: $pickingContacts, onDismiss: {
-                if !picked.isEmpty { bulk = .contacts(picked) }
-            }) {
-                ContactsMultiPicker { contacts in
-                    picked = contacts
-                    pickingContacts = false
+                if !picked.isEmpty {
+                    bulk = .contacts(picked)
+                } else if manualAfterPick {
+                    manualAfterPick = false
+                    newByHand()
                 }
-                .ignoresSafeArea()
+            }) {
+                ContactsSheet(mode: .many { picked = $0 }, onManual: { manualAfterPick = true })
             }
             .sheet(item: $bulk) { source in
                 BulkAddView(source: source, initialGroup: currentGroup).onDisappear { picked = [] }
@@ -417,7 +419,7 @@ struct PeopleView: View {
             : list.sorted { ($0.starred ? 0 : 1, $0.displayName) < ($1.starred ? 0 : 1, $1.displayName) }
     }
 
-    private var empty: some View {
+    @ViewBuilder private var empty: some View {
         switch filter {
         case _ where !search.isEmpty:
             EmptyPanel(icon: "magnifyingglass", title: "No matches",
@@ -427,8 +429,14 @@ struct PeopleView: View {
         case .starred:
             EmptyPanel(icon: "star", title: "Nobody starred", hint: "Star people from their page, a swipe, or a long press.")
         case .all:
-            EmptyPanel(icon: "person.badge.plus", title: "Add your first friend",
-                       hint: "Tap + and pick people from Contacts. Their photos, numbers and birthdays come along.")
+            // The prompt is the same menu as the +: tapping it is the
+            // natural first move, and it used to do nothing.
+            Menu { addItems } label: {
+                EmptyPanel(icon: "person.badge.plus", title: "Add your first friend",
+                           hint: "Tap here to pick people from Contacts, paste a list of names, or add someone by hand.")
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
         default:
             EmptyPanel(icon: "person.2", title: "Nobody here", hint: "Select people and move them here, or change a friend's group from their page.")
         }
@@ -436,22 +444,30 @@ struct PeopleView: View {
 
     // MARK: add menu and bulk bar
 
+    /// The ways in, shared by the + and the empty state.
+    @ViewBuilder private var addItems: some View {
+        Button { newByHand() } label: { Label("New friend", systemImage: "person.badge.plus") }
+        Button { pickingContacts = true } label: { Label("From Contacts", systemImage: "person.crop.circle.badge.plus") }
+        Button { bulk = .names } label: { Label("Paste names", systemImage: "text.badge.plus") }
+        Divider()
+        Button { showGroups = true } label: { Label("Groups…", systemImage: "folder") }
+    }
+
+    private func newByHand() {
+        let friend = Friend()
+        if let group = currentGroup { friend.groups = [group] }
+        context.insert(friend)
+        newFriend = friend
+    }
+
     private var addMenu: some View {
         Menu {
-            Button {
-                let friend = Friend()
-                if let group = currentGroup { friend.groups = [group] }
-                context.insert(friend)
-                newFriend = friend
-            } label: { Label("New friend", systemImage: "person.badge.plus") }
-            Button { pickingContacts = true } label: { Label("From Contacts", systemImage: "person.crop.circle.badge.plus") }
-            Button { bulk = .names } label: { Label("Paste names", systemImage: "text.badge.plus") }
-            Divider()
-            Button { showGroups = true } label: { Label("Groups…", systemImage: "folder") }
+            addItems
         } label: {
             Image(systemName: "plus")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white)
+                .accessibilityLabel("Add people")
                 .frame(width: 26, height: 26)
         }
         .glassButton(prominent: true, shape: .circle)

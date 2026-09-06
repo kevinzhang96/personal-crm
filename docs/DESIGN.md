@@ -337,25 +337,33 @@ how a dinner with four friends gets its other three.
 
 ### Contacts
 
-Linking uses the system contact picker, stores the identifier, and copies
-name, photo, phones, emails, birthday, social profiles and IM addresses
-into Friend and ContactMethods. "Refresh from Contacts" re-pulls those
-fields; nothing is written back to Contacts.
+Access is asked for first, once, and plainly (`Views/ContactsSheet.swift`):
+a line on why, then the system prompt, then the app's own searchable
+list — the system picker has no search the app can reach, and opening
+it before asking meant iOS 18's "select contacts" sheet surfaced after a
+pick. What iOS keeps for itself is the choice of full or limited access:
+under limited access the sheet shows the shared few with Apple's
+`contactAccessPicker` to add more and `ContactAccessButton` for a search
+that reaches outside the grant, and says that full access is a Settings
+switch; denied or restricted gets an explanation, a Settings link, and
+the way to add someone by name. Nothing asks for access again after a
+pick. Linking stores the identifier and copies name, photo, phones,
+emails, birthday, social profiles and IM addresses into Friend and
+ContactMethods. "Refresh from Contacts" re-pulls those fields; nothing
+is written back to Contacts.
 
 ### Bulk add
 
 The People "+" is a menu: one friend by hand, many from Contacts, or many
-from a pasted list. The contact picker runs in multi-select mode (which
-`CNContactPickerViewController` turns on when the delegate implements
-the list-taking method, so it is a separate representable). Pasted text
+from a pasted list; the empty state's prompt opens the same menu. The
+contacts list is the app's own, in multi-select. Pasted text
 is one name per line — or one line split on commas or semicolons — with
 list numbering and bullets stripped (`Logic/BulkNames.swift`, tested).
 Both paths land in one review sheet: a circle and tags for the whole
 batch, one row per person, and anyone already present (same contact
 identifier, or same name for pasted lists) shown as "added" and left out.
-Contacts access is requested once per batch so full records can be
-fetched; without it the picker's copies are applied, which still carry a
-name and numbers.
+The chosen contacts already carry every field the app reads, so nothing
+asks for access after the pick.
 
 ## 5. Backup and export
 
