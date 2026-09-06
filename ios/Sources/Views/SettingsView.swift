@@ -14,6 +14,11 @@ struct SettingsView: View {
     @AppStorage(Notifier.digestMinuteKey) private var digestMinute = 0
     @AppStorage(SwipeAction.leadingKey) private var swipeLeading = SwipeAction.defaultLeading
     @AppStorage(SwipeAction.trailingKey) private var swipeTrailing = SwipeAction.defaultTrailing
+    @AppStorage(SuggestionSettings.judgeEnabledKey) private var judgeEnabled = true
+    @AppStorage(SuggestionSettings.roundsKey) private var judgeRounds = Prompts.defaultRounds
+    @AppStorage(SuggestionSettings.extractorKey) private var extractorPrompt = Prompts.extractor
+    @AppStorage(SuggestionSettings.judgeKey) private var judgePrompt = Prompts.judge
+    @State private var editingPrompt: PromptEditor.Which?
     @Query private var friends: [Friend]
     @Query private var entries: [Entry]
     @Query(sort: \FriendGroup.order) private var groups: [FriendGroup]
@@ -63,6 +68,9 @@ struct SettingsView: View {
                 }
             }
             .sheet(isPresented: $showGroups) { GroupsView() }
+            .sheet(item: $editingPrompt) { which in
+                PromptEditor(which: which, text: which == .extractor ? $extractorPrompt : $judgePrompt)
+            }
             .alert("Data", isPresented: .init(get: { note != nil }, set: { if !$0 { note = nil } })) {
                 Button("OK") {}
             } message: { Text(note ?? "") }
@@ -225,19 +233,54 @@ struct SettingsView: View {
     }
 
     private var suggestionsPanel: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let model = SuggestionEngine.usesLanguageModel
+        return VStack(alignment: .leading, spacing: 10) {
             SectionLabel("Suggestions")
             HStack {
                 Text("On-device language model").font(.subheadline)
                 Spacer()
-                Badge(SuggestionEngine.usesLanguageModel ? "on" : "n/a", tint: SuggestionEngine.usesLanguageModel ? Theme.rise : .secondary)
+                Badge(model ? "on" : "n/a", tint: model ? Theme.rise : .secondary)
             }
-            Text(SuggestionEngine.usesLanguageModel
-                 ? "Apple Intelligence reads new notes for events and facts. Nothing leaves the phone."
-                 : "This device has no on-device model; notes are read by pattern matching instead.")
+            Text(model
+                 ? "Apple Intelligence reads new notes for events and facts. Nothing leaves the phone, and nothing is added until you say so."
+                 : "This device has no on-device model; notes are read by pattern matching instead, under the same rules.")
+                .font(.caption2).foregroundStyle(.tertiary)
+            Divider()
+            Toggle(isOn: $judgeEnabled) {
+                Text("Second opinion").font(.subheadline)
+            }
+            .tint(Theme.accent)
+            .disabled(!model)
+            Stepper(value: $judgeRounds, in: Prompts.roundsRange) {
+                HStack {
+                    Text("Rounds").font(.subheadline)
+                    Spacer()
+                    Text("\(judgeRounds)").font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
+                }
+            }
+            .disabled(!model || !judgeEnabled)
+            Text("A second session reads each proposal against the note and sends back what it can't support; the first drafts again. Each round is a model call, a few seconds apiece, and the last one only trims.")
+                .font(.caption2).foregroundStyle(.tertiary)
+            Divider()
+            promptRow("Reading prompt", .extractor, edited: extractorPrompt != Prompts.extractor)
+            promptRow("Judge prompt", .judge, edited: judgePrompt != Prompts.judge)
+            Text("The rules that drop anything the note doesn't say run whatever the prompts ask for.")
                 .font(.caption2).foregroundStyle(.tertiary)
         }
         .panel()
+    }
+
+    private func promptRow(_ label: String, _ which: PromptEditor.Which, edited: Bool) -> some View {
+        Button { editingPrompt = which } label: {
+            HStack {
+                Text(label).font(.subheadline)
+                if edited { Badge("edited", tint: Theme.accent) }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
     }
 
     private var dataPanel: some View {
@@ -271,5 +314,88 @@ struct SettingsView: View {
                 digestHour = parts.hour ?? Notifier.defaultHour
                 digestMinute = parts.minute ?? 0
             })
+    }
+}
+
+/// One of the two prompts, as a page of text with a way back to the
+/// default. The stored value is the reader's; the default is the app's,
+/// and "Reset" makes them the same again.
+struct PromptEditor: View {
+    enum Which: String, Identifiable {
+        case extractor, judge
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .extractor: "Reading prompt"
+            case .judge: "Judge prompt"
+            }
+        }
+
+        var hint: String {
+            switch self {
+            case .extractor: "What the first session is told before it reads a note. The dated calendar and the note itself are added after this."
+            case .judge: "What the second session is told before it reads the proposals against the note. The note and a numbered list follow."
+            }
+        }
+
+        var fallback: String {
+            switch self {
+            case .extractor: Prompts.extractor
+            case .judge: Prompts.judge
+            }
+        }
+    }
+
+    let which: Which
+    @Binding var text: String
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("appearance") private var appearance = Appearance.dark.rawValue
+    @State private var draft = ""
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Theme.background
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(which.hint).font(.caption).foregroundStyle(.secondary)
+                    // The prompt is the page; the editor takes what the hint and the footer leave.
+                    TextEditor(text: $draft)
+                        .font(.subheadline)
+                        .scrollContentBackground(.hidden)
+                        .panel()
+                    footer
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+            }
+            .navigationTitle(which.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+                        // Blank is not a prompt; the default answers instead.
+                        text = trimmed.isEmpty ? which.fallback : draft
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear { draft = text }
+        }
+        .preferredColorScheme(Appearance(rawValue: appearance)?.colorScheme)
+    }
+
+    private var footer: some View {
+        HStack {
+            if draft != which.fallback {
+                Button("Reset to default") { draft = which.fallback }.font(.footnote.weight(.semibold))
+            } else {
+                Text("This is the default.").font(.footnote).foregroundStyle(.tertiary)
+            }
+            Spacer()
+            Text("\(draft.count) characters").font(.caption2).foregroundStyle(.tertiary).monospacedDigit()
+        }
     }
 }
