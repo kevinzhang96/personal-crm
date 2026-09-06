@@ -51,7 +51,7 @@ struct RootView: View {
             switch phase {
             case .active:
                 attempt = PendingContact.take()
-                Task { await Notifier.reschedule(context: context) }
+                Task { await AfterChange.run(context: context) }
             case .background:
                 BackgroundRefresh.schedule()
             default:

@@ -13,7 +13,7 @@ binding; this file is the short version of how to work in the repo.
 - **Functional core, imperative shell.** `ios/Sources/Logic/` is pure —
   no SwiftData, no UIKit, no clocks (every function takes `now`). It is the
   only layer with unit tests, and it is where cadence, digest, suggestion,
-  grounding, judge-loop, link and backup rules live. `Services/` is the edge (Contacts, audio,
+  grounding, judge-loop, calendar-sync, link and backup rules live. `Services/` is the edge (Contacts, audio,
   speech, notifications, files); `Views/` render and call services.
 - **Derived, never stored.** Last contact and overdue status are computed
   from entries; never add a column that caches them.

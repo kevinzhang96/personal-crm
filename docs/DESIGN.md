@@ -111,7 +111,7 @@ ios/
     TendApp.swift        root: model container, tabs, notification delegate
     Theme.swift          midnight-glass tokens and panel components
     Models/              SwiftData models (the store's schema)
-    Logic/               pure functions: cadence, digest, suggestions, grounding, judge loop, links, backup codec
+    Logic/               pure functions: cadence, digest, suggestions, grounding, judge loop, calendar sync, links, backup codec
     Services/            edge: contacts, recorder, transcriber, notifier, exporter, extractor
     Views/               screens and sheets
   Tests/                 Swift Testing over Logic/ only
@@ -301,6 +301,27 @@ through the real on-device model and writes a per-round trace.
 Proposals are editable in the sheet — wording and date of a follow-up,
 label and value of a fact — because the model's phrasing is a draft, not
 a verdict.
+
+### Calendar sync
+
+Off by default, and switched on in Settings, which is the moment the
+app asks for calendar access — full access, because write-only can add
+an event but never read it back, so it could neither change nor remove
+what it added nor make and later remove a calendar of its own. Three
+switches under the one: follow-ups (each open reminder, half an hour on
+its due day), logs (each entry, half an hour on its day), and catch-up
+nudges (an all-day "Reach out to <friend>" on the day the cadence runs
+out — the same clock as Cadence, never before today or a snooze). Every
+change to the store runs the same reconcile (`Logic/CalendarSync.swift`,
+tested against a dictionary standing in for EventKit): what Tend wants,
+against what it put there, becomes creates, updates and removals — so
+logging a call moves that friend's nudge out by the cadence, completing
+a follow-up removes its event, and an event the reader deleted by hand
+comes back. Everything lands on a calendar of its own called Tend, made
+on first use in the iCloud source, so switching sync off removes it and
+everything on it. The object-to-event mapping lives in a file on the
+device (`calendar-sync.json`), never in the store: event identifiers are
+one device's and one account's, and this adds no CloudKit schema.
 
 ### Summary
 

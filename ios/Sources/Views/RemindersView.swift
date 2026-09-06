@@ -50,7 +50,7 @@ struct RemindersView: View {
         r.done.toggle()
         r.doneAt = r.done ? now : nil
         try? context.save()
-        Task { await Notifier.reschedule(context: context) }
+        Task { await AfterChange.run(context: context) }
     }
 }
 
@@ -128,7 +128,7 @@ struct ReminderEditorView: View {
 
     private func save() {
         try? context.save()
-        Task { await Notifier.reschedule(context: context) }
+        Task { await AfterChange.run(context: context) }
         dismiss()
     }
 }

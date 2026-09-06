@@ -603,7 +603,7 @@ struct PeopleView: View {
 
     private func save() {
         try? context.save()
-        Task { await Notifier.reschedule(context: context) }
+        Task { await AfterChange.run(context: context) }
     }
 }
 

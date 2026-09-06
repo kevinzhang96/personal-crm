@@ -19,6 +19,11 @@ struct SettingsView: View {
     @AppStorage(SuggestionSettings.extractorKey) private var extractorPrompt = Prompts.extractor
     @AppStorage(SuggestionSettings.judgeKey) private var judgePrompt = Prompts.judge
     @State private var editingPrompt: PromptEditor.Which?
+    @AppStorage(CalendarSync.enabledKey) private var calendarEnabled = false
+    @AppStorage(CalendarSync.followUpsKey) private var calendarFollowUps = true
+    @AppStorage(CalendarSync.logsKey) private var calendarLogs = true
+    @AppStorage(CalendarSync.catchUpsKey) private var calendarCatchUps = true
+    @State private var calendarSync = CalendarSync.shared
     @Query private var friends: [Friend]
     @Query private var entries: [Entry]
     @Query(sort: \FriendGroup.order) private var groups: [FriendGroup]
@@ -39,6 +44,7 @@ struct SettingsView: View {
                 groupsPanel
                 swipePanel
                 nudgesPanel
+                calendarPanel
                 suggestionsPanel
                 dataPanel
                 Text("Tend \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") · everything stays on this phone")
@@ -59,7 +65,7 @@ struct SettingsView: View {
                     do {
                         let summary = try Importer.importBackup(from: url, into: context)
                         note = "Imported " + summary.description
-                        Task { await Notifier.reschedule(context: context) }
+                        Task { await AfterChange.run(context: context) }
                     } catch {
                         note = error.localizedDescription
                     }
@@ -202,8 +208,8 @@ struct SettingsView: View {
             SectionLabel("Nudges")
             DatePicker("Daily digest at", selection: digestTime, displayedComponents: .hourAndMinute)
                 .font(.subheadline)
-                .onChange(of: digestHour) { _, _ in Task { await Notifier.reschedule(context: context) } }
-                .onChange(of: digestMinute) { _, _ in Task { await Notifier.reschedule(context: context) } }
+                .onChange(of: digestHour) { _, _ in Task { await AfterChange.run(context: context) } }
+                .onChange(of: digestMinute) { _, _ in Task { await AfterChange.run(context: context) } }
             HStack {
                 Text("Notifications").font(.subheadline)
                 Spacer()
@@ -217,7 +223,7 @@ struct SettingsView: View {
                         Task {
                             _ = await Notifier.requestAuthorization()
                             notifications = await Notifier.authorizationStatus()
-                            await Notifier.reschedule(context: context)
+                            await AfterChange.run(context: context)
                         }
                     }
                     .font(.subheadline.weight(.semibold))
@@ -230,6 +236,67 @@ struct SettingsView: View {
                 .font(.caption2).foregroundStyle(.tertiary)
         }
         .panel()
+    }
+
+    private var calendarPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionLabel("Calendar")
+            Toggle(isOn: calendarMaster) {
+                Text("Sync to Calendar").font(.subheadline)
+            }
+            .tint(Theme.accent)
+            if calendarEnabled {
+                Toggle(isOn: $calendarFollowUps) { Text("Follow-ups").font(.subheadline) }
+                Toggle(isOn: $calendarLogs) { Text("Logs").font(.subheadline) }
+                Toggle(isOn: $calendarCatchUps) { Text("Catch-up nudges").font(.subheadline) }
+                HStack {
+                    Text("Calendar access").font(.subheadline)
+                    Spacer()
+                    if calendarSync.authorized {
+                        Badge("on", tint: Theme.rise)
+                    } else {
+                        Button("Open Settings") { CalendarSync.openSettings() }.font(.caption.weight(.semibold))
+                    }
+                }
+                if let error = calendarSync.lastError {
+                    Text(error).font(.caption).foregroundStyle(Theme.warn)
+                } else if let at = calendarSync.lastSync {
+                    Text("\(calendarSync.count) on the Tend calendar · synced \(Dates.since(at, now: Date()))")
+                        .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                }
+            }
+            Text("Everything lands on a calendar of its own called Tend, so removing it removes it all. Follow-ups sit on their due day, logs on their day, and each friend's next catch-up on the day their cadence runs out — logging a call moves it.")
+                .font(.caption2).foregroundStyle(.tertiary)
+        }
+        .panel()
+        .tint(Theme.accent)
+        .onChange(of: calendarFollowUps) { _, _ in Task { await calendarSync.reconcile(context: context) } }
+        .onChange(of: calendarLogs) { _, _ in Task { await calendarSync.reconcile(context: context) } }
+        .onChange(of: calendarCatchUps) { _, _ in Task { await calendarSync.reconcile(context: context) } }
+    }
+
+    /// Switching on asks for access there and then; refused, the switch
+    /// falls back and says where to turn it on. Switching off takes the
+    /// Tend calendar with it.
+    private var calendarMaster: Binding<Bool> {
+        Binding(
+            get: { calendarEnabled },
+            set: { on in
+                if on {
+                    Task {
+                        if await calendarSync.requestAccess() {
+                            calendarEnabled = true
+                            await calendarSync.reconcile(context: context)
+                        } else {
+                            calendarEnabled = false
+                            note = "Calendar access is off for Tend. Turn it on in Settings → Tend → Calendars, then switch sync on again."
+                        }
+                    }
+                } else {
+                    calendarEnabled = false
+                    calendarSync.turnOff()
+                }
+            })
     }
 
     private var suggestionsPanel: some View {

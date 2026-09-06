@@ -201,7 +201,7 @@ struct BulkAddView: View {
             }
         }
         try? context.save()
-        await Notifier.reschedule(context: context)
+        await AfterChange.run(context: context)
         adding = false
         dismiss()
     }

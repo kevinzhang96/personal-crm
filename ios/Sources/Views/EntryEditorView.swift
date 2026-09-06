@@ -85,7 +85,7 @@ struct EntryEditorView: View {
                         if let file = entry.audioFile { AudioStore.delete(file) }
                         context.delete(entry)
                         try? context.save()
-                        Task { await Notifier.reschedule(context: context) }
+                        Task { await AfterChange.run(context: context) }
                     }
                     dismiss()
                 }
@@ -340,7 +340,7 @@ struct EntryEditorView: View {
         entry.friends = friends
         for friend in friends { friend.updatedAt = Date() }
         try? context.save()
-        await Notifier.reschedule(context: context)
+        await AfterChange.run(context: context)
         savedEntry = entry
 
         // Only a first save proposes; re-opening an entry to fix a typo
