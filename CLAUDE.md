@@ -13,7 +13,7 @@ binding; this file is the short version of how to work in the repo.
 - **Functional core, imperative shell.** `ios/Sources/Logic/` is pure —
   no SwiftData, no UIKit, no clocks (every function takes `now`). It is the
   only layer with unit tests, and it is where cadence, digest, suggestion,
-  link and backup rules live. `Services/` is the edge (Contacts, audio,
+  grounding, judge-loop, link and backup rules live. `Services/` is the edge (Contacts, audio,
   speech, notifications, files); `Views/` render and call services.
 - **Derived, never stored.** Last contact and overdue status are computed
   from entries; never add a column that caches them.
@@ -22,7 +22,11 @@ binding; this file is the short version of how to work in the repo.
   a migration path when the shape changes. Models may change freely under
   it.
 - **Suggestions are proposals.** Nothing the extractor produces is saved
-  without the user accepting it.
+  without the user accepting it. The pipeline is proposer → rules → judge
+  (`Logic/Grounding.swift`, `Logic/JudgeLoop.swift`); each stage only
+  proposes or trims, and the bias is toward leaving things out. A change
+  to what gets suggested usually touches the heuristic and the rules,
+  not just a prompt string.
 - **Design language:** midnight glass (`~/.claude/skills/midnight-glass-ui/SKILL.md`).
   `Theme.swift` is copied from tcgdb; here blue = action, green = in touch /
   on track, orange = overdue / due. An accent must mean something.

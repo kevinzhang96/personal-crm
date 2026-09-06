@@ -77,3 +77,51 @@ struct SuggestionTests {
         #expect(out.filter(\.isFollowUp).count == 1)
     }
 }
+
+// The bias toward leaving things out: what the heuristic no longer says.
+struct ConservativeSuggestionTests {
+    let calendar = Calendar(identifier: .gregorian)
+    var now: Date { calendar.date(from: DateComponents(year: 2026, month: 9, day: 5, hour: 15))! }
+    var extractor: HeuristicExtractor { HeuristicExtractor(calendar: calendar) }
+
+    @Test("a possession, a pastime and a phrase are not events")
+    func notEvents() {
+        for note in [
+            "She has a baby and a dog.",
+            "We watched the match on Saturday.",
+            "Her performance review is next week.",
+            "She's been hearing about the new place.",
+            "They got the results back and everything is fine.",
+            "She's flying a lot for work these days.",
+        ] {
+            #expect(extractor.suggestions(for: note, now: now).filter(\.isFollowUp).isEmpty, "\(note)")
+        }
+    }
+
+    @Test("the note-writer's own event is not the friend's")
+    func aboutSelf() {
+        #expect(extractor.suggestions(for: "I have an interview on Monday.", now: now).isEmpty)
+        #expect(extractor.suggestions(for: "My surgery is tomorrow.", now: now).isEmpty)
+        #expect(!extractor.suggestions(for: "Her interview is on Monday.", now: now).isEmpty)
+    }
+
+    @Test("last week is behind us, however near the next one is")
+    func lastWeek() {
+        #expect(extractor.suggestions(for: "Her surgery was last Monday.", now: now).isEmpty)
+        #expect(extractor.suggestions(for: "The wedding was last week.", now: now).isEmpty)
+        let recent = extractor.suggestions(for: "Her surgery was yesterday.", now: now)
+        #expect(recent.first?.title == "Check in after the surgery")
+    }
+
+    @Test("phrasings that sound like facts but aren't stay out")
+    func notFacts() {
+        for note in [
+            "She's working with Sarah on the redesign.",
+            "She would love to see you.",
+            "He really wants to move somewhere warmer.",
+            "Her son is Tall for his age.",
+        ] {
+            #expect(extractor.suggestions(for: note, now: now).filter { !$0.isFollowUp }.isEmpty, "\(note)")
+        }
+    }
+}
