@@ -1,6 +1,8 @@
-// Capturing a conversation: what kind, when, with whom, and the words —
-// typed, or recorded and transcribed. Saving runs the extractor and
-// offers what it found; nothing is created without a tap.
+// Capturing a conversation: who it was with first — the keyboard is up
+// before the sheet has settled, a name or two and Return is enough —
+// then what kind, when, and the words, typed or recorded and
+// transcribed. Saving runs the extractor and offers what it found;
+// nothing is created without a tap.
 
 import SwiftData
 import SwiftUI
@@ -23,6 +25,8 @@ struct EntryEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appearance") private var appearance = Appearance.dark.rawValue
 
+    /// A new entry with nobody named yet asks who first.
+    @State private var choosing: Bool
     @State private var kind: EntryKind = .note
     @State private var date = Date()
     @State private var friends: [Friend] = []
@@ -44,30 +48,18 @@ struct EntryEditorView: View {
     @State private var confirmDelete = false
     @FocusState private var textFocused: Bool
 
+    init(draft: EntryDraft) {
+        self.draft = draft
+        _choosing = State(initialValue: draft.entry == nil && draft.friends.isEmpty)
+    }
+
     var body: some View {
         NavigationStack {
-            PanelScroll {
-                kinds
-                who
-                words
-                audio
-                if draft.entry != nil {
-                    Button("Delete entry", role: .destructive) { confirmDelete = true }
-                        .font(.footnote)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            .navigationTitle(draft.entry == nil ? "Log" : "Entry")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { cancel() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button { Task { await save() } } label: {
-                        if saving { ProgressView() } else { Text("Save") }
-                    }
-                    .disabled(saving || (text.isEmpty && transcript.isEmpty && audioFile == nil))
+            Group {
+                if choosing {
+                    WhoStage(onPick: { begin(with: [$0]) }, onSkip: { begin(with: []) }, onCancel: cancel)
+                } else {
+                    editor
                 }
             }
             .onAppear(perform: load)
@@ -113,6 +105,34 @@ struct EntryEditorView: View {
             }
         }
         .preferredColorScheme(Appearance(rawValue: appearance)?.colorScheme)
+    }
+
+    private var editor: some View {
+        PanelScroll {
+            kinds
+            who
+            words
+            audio
+            if draft.entry != nil {
+                Button("Delete entry", role: .destructive) { confirmDelete = true }
+                    .font(.footnote)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .navigationTitle(draft.entry == nil ? "Log" : "Entry")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { cancel() }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button { Task { await save() } } label: {
+                    if saving { ProgressView() } else { Text("Save") }
+                }
+                .disabled(saving || (text.isEmpty && transcript.isEmpty && audioFile == nil))
+            }
+        }
+        .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
     // MARK: sections
@@ -253,9 +273,20 @@ struct EntryEditorView: View {
                 audioFile = file
                 duration = draft.duration
                 Task { await transcribe(file) }
-            } else {
+            } else if !choosing {
                 textFocused = true
             }
+        }
+    }
+
+    /// The person is settled; the words are next, so the cursor goes
+    /// straight to them once the editor is on screen.
+    private func begin(with chosen: [Friend]) {
+        friends = chosen
+        withAnimation(.snappy) { choosing = false }
+        Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            textFocused = true
         }
     }
 
@@ -352,6 +383,126 @@ struct EntryEditorView: View {
 struct SuggestionBatch: Identifiable {
     let id = UUID()
     let outcome: JudgeOutcome
+}
+
+/// The first screen of a new log: who was it with. The field is focused
+/// as the sheet arrives, the list narrows as the reader types, and a tap
+/// or Return on the first match moves on. The people logged most
+/// recently sit at the top, since they are the likely answer.
+struct WhoStage: View {
+    let onPick: (Friend) -> Void
+    let onSkip: () -> Void
+    let onCancel: () -> Void
+    @Query(filter: #Predicate<Friend> { !$0.archived }, sort: \Friend.displayName) private var friends: [Friend]
+    @State private var search = ""
+    @FocusState private var focused: Bool
+    private let now = Date()
+
+    var body: some View {
+        ZStack {
+            Theme.background
+            VStack(spacing: 8) {
+                field
+                List {
+                    if friends.isEmpty {
+                        EmptyPanel(icon: "person.badge.plus", title: "No friends yet", hint: "Add people in the People tab first, or log a note on its own.")
+                            .plainRow()
+                    } else if shown.isEmpty {
+                        EmptyPanel(icon: "person.fill.questionmark", title: "No one called “\(search)”", hint: "Try another spelling, or log a note on its own.")
+                            .plainRow()
+                    }
+                    if search.isEmpty, !recent.isEmpty {
+                        SectionLabel("Recent").plainRow(EdgeInsets(top: 8, leading: 20, bottom: 2, trailing: 16))
+                        ForEach(recent) { row($0) }
+                        SectionLabel("Everyone").plainRow(EdgeInsets(top: 12, leading: 20, bottom: 2, trailing: 16))
+                    }
+                    ForEach(shown) { row($0) }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .scrollDismissesKeyboard(.immediately)
+            }
+        }
+        .navigationTitle("Who was it with?")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
+            ToolbarItem(placement: .confirmationAction) { Button("Just a note", action: onSkip) }
+        }
+        .task {
+            // The sheet is still sliding in when this runs; the keyboard
+            // follows it up rather than fighting it.
+            try? await Task.sleep(for: .milliseconds(150))
+            focused = true
+        }
+    }
+
+    private var field: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Name", text: $search)
+                .focused($focused)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .submitLabel(.go)
+                .onSubmit { if let first = shown.first { onPick(first) } }
+            if !search.isEmpty {
+                Button { search = "" } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .font(.body)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .glassEffect(.regular, in: .capsule)
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+    }
+
+    private func row(_ friend: Friend) -> some View {
+        Button { onPick(friend) } label: {
+            HStack(spacing: 12) {
+                Avatar(friend: friend, size: 40)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(friend.displayName.isEmpty ? "Unnamed" : friend.displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                    Text(friend.lastContact.map { "last talked " + Dates.since($0, now: now) } ?? friend.groupNames)
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                StatusBadge(status: friend.status(now: now))
+            }
+            .panel()
+        }
+        .buttonStyle(.plain)
+        .plainRow()
+    }
+
+    /// The few people logged with most recently, in that order.
+    private var recent: [Friend] {
+        friends.compactMap { f -> (Friend, Date)? in
+            f.sortedEntries.first.map { (f, $0.date) }
+        }
+        .sorted { $0.1 > $1.1 }
+        .prefix(4)
+        .map(\.0)
+    }
+
+    /// Names that start with what was typed come first, then anything
+    /// else about the person that contains it.
+    private var shown: [Friend] {
+        let q = search.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return friends }
+        func rank(_ f: Friend) -> Int {
+            if f.displayName.lowercased().hasPrefix(q) || f.givenName.lowercased().hasPrefix(q) || f.nickname.lowercased().hasPrefix(q) { return 0 }
+            if f.displayName.lowercased().split(separator: " ").contains(where: { $0.hasPrefix(q) }) { return 1 }
+            return 2
+        }
+        return friends.filter { $0.searchText.contains(q) }.sorted { (rank($0), $0.displayName) < (rank($1), $1.displayName) }
+    }
 }
 
 /// Pick the people an entry was with.

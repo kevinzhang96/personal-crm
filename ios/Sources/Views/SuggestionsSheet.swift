@@ -98,8 +98,8 @@ struct SuggestionsSheet: View {
 
     /// Where these came from, and how many were set aside on the way.
     private var provenance: String {
-        var text = SuggestionEngine.usesLanguageModel ? "Found on your device by Apple's language model" : "Found by pattern matching, on your device"
-        if outcome.rounds > 0 { text += outcome.approved ? ", then checked by a second pass" : ", then trimmed by a second pass" }
+        var text = outcome.modelled ? "Found on your device by Apple's language model" : "Found by pattern matching, on your device"
+        if outcome.rounds > 0 { text += ", then read again by a second pass" }
         if !outcome.rejected.isEmpty { text += "; \(outcome.rejected.count) set aside" }
         return text + "."
     }

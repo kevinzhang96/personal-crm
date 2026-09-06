@@ -52,6 +52,16 @@ struct HeuristicExtractor: SuggestionProposer {
     /// Follow-ups land the morning after the event.
     static let followUpHour = 9
 
+    /// When to follow up on an event: the morning after it, or after
+    /// today if it has already passed; an undated one is taken to be
+    /// about a week out. The one place this rule lives, whoever found
+    /// the event.
+    static func followUpDue(after eventDay: Date?, now: Date, calendar: Calendar) -> Date {
+        let day = eventDay.map { max($0, now) } ?? calendar.date(byAdding: .day, value: 6, to: now) ?? now
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: day)) ?? day
+        return Dates.at(hour: followUpHour, on: nextDay, calendar: calendar)
+    }
+
     func propose(note: String, now: Date) async throws -> [Suggestion] {
         suggestions(for: note, now: now)
     }
@@ -78,19 +88,14 @@ struct HeuristicExtractor: SuggestionProposer {
         guard let title = Self.eventTitle(in: sentence) else { return nil }
         // The note-writer's own interview is not the friend's.
         guard Self.aboutSelf.firstMatch(in: sentence, range: NSRange(sentence.startIndex..., in: sentence)) == nil else { return nil }
-        let eventDay: Date
-        if let explicit = Self.date(in: sentence, now: now, calendar: calendar) {
+        let explicit = Self.date(in: sentence, now: now, calendar: calendar)
+        if let explicit {
             // An event more than a few days gone is a story, not a follow-up.
             if Dates.daysBetween(explicit, now, calendar: calendar) > 3 { return nil }
-            eventDay = max(explicit, now)
-        } else if Self.futureMarker.firstMatch(in: sentence, range: NSRange(sentence.startIndex..., in: sentence)) != nil {
-            eventDay = calendar.date(byAdding: .day, value: 6, to: now) ?? now
-        } else {
+        } else if Self.futureMarker.firstMatch(in: sentence, range: NSRange(sentence.startIndex..., in: sentence)) == nil {
             return nil
         }
-        let nextDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: eventDay)) ?? eventDay
-        let due = Dates.at(hour: Self.followUpHour, on: nextDay, calendar: calendar)
-        return .followUp(title, due: due, because: sentence)
+        return .followUp(title, due: Self.followUpDue(after: explicit, now: now, calendar: calendar), because: sentence)
     }
 
     /// The first event word the sentence mentions, with what to ask.

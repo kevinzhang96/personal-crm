@@ -67,13 +67,10 @@ enum Grounding {
 
         // The sentence's own day, resolved here, beats the proposer's
         // arithmetic; without one the proposer's day stands if it is ahead.
-        let today = calendar.startOfDay(for: now)
         let due: Date
         if let sentenceDay {
-            let eventDay = max(sentenceDay, now)
-            let nextDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: eventDay)) ?? eventDay
-            due = Dates.at(hour: HeuristicExtractor.followUpHour, on: nextDay, calendar: calendar)
-        } else if let proposed = s.dueDate, proposed >= today {
+            due = HeuristicExtractor.followUpDue(after: sentenceDay, now: now, calendar: calendar)
+        } else if let proposed = s.dueDate, proposed >= calendar.startOfDay(for: now) {
             due = proposed
         } else {
             return .drop("the day to follow up has passed")
