@@ -33,7 +33,7 @@ struct EditableSuggestion: Identifiable {
 }
 
 struct SuggestionsSheet: View {
-    let suggestions: [Suggestion]
+    let outcome: JudgeOutcome
     let friends: [Friend]
     let entry: Entry?
     let onClose: () -> Void
@@ -68,8 +68,7 @@ struct SuggestionsSheet: View {
                         if !item.isFollowUp { factRow($item) }
                     }
                 }
-                Text((SuggestionEngine.usesLanguageModel ? "Found on your device by Apple's language model. " : "Found by pattern matching, on your device. ")
-                     + "Edit anything before adding.")
+                Text(provenance + " Edit anything before adding.")
                     .font(.caption2).foregroundStyle(.tertiary)
             }
             .navigationTitle("Tend noticed")
@@ -85,7 +84,7 @@ struct SuggestionsSheet: View {
                 }
             }
             .onAppear {
-                items = suggestions.map(EditableSuggestion.init)
+                items = outcome.suggestions.map(EditableSuggestion.init)
                 target = friends.first
             }
         }
@@ -95,6 +94,14 @@ struct SuggestionsSheet: View {
 
     private var chosen: [EditableSuggestion] {
         items.filter { $0.selected && $0.complete }
+    }
+
+    /// Where these came from, and how many were set aside on the way.
+    private var provenance: String {
+        var text = SuggestionEngine.usesLanguageModel ? "Found on your device by Apple's language model" : "Found by pattern matching, on your device"
+        if outcome.rounds > 0 { text += outcome.approved ? ", then checked by a second pass" : ", then trimmed by a second pass" }
+        if !outcome.rejected.isEmpty { text += "; \(outcome.rejected.count) set aside" }
+        return text + "."
     }
 
     private func checkbox(_ item: Binding<EditableSuggestion>) -> some View {

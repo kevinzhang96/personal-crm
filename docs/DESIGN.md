@@ -111,7 +111,7 @@ ios/
     TendApp.swift        root: model container, tabs, notification delegate
     Theme.swift          midnight-glass tokens and panel components
     Models/              SwiftData models (the store's schema)
-    Logic/               pure functions: cadence, digest, suggestions, links, backup codec
+    Logic/               pure functions: cadence, digest, suggestions, grounding, judge loop, links, backup codec
     Services/            edge: contacts, recorder, transcriber, notifier, exporter, extractor
     Views/               screens and sheets
   Tests/                 Swift Testing over Logic/ only
@@ -235,31 +235,61 @@ nearest follow-ups, and the nearest birthdays, in that priority.
 
 Saving an entry with text runs the extractor and shows a sheet of
 proposals; accepting creates the `Reminder`/`Fact` with `source` pointing
-at the entry. Nothing is created silently.
+at the entry. Nothing is created silently, and nothing here ever will
+be: every stage below only proposes or trims.
 
-Two implementations behind one protocol, tried in order:
+The bias is toward leaving things out. A follow-up is offered only for a
+specific event in the friend's own life that the note states; a fact only
+when the note states it in its own words. The first model prompt was
+eager — it filled every slot, read feelings into notes, took the
+note-writer's plans for the friend's — so the pipeline is now a proposer,
+a set of rules, and a judge:
 
-1. **FoundationModels** (on-device LLM, iOS 26 on Apple-Intelligence
-   devices; verified working in the simulator on the Mac Studio):
-   guided generation into a `@Generable` struct — events with an ISO
-   date and evidence sentence, plus facts. Three guards, all learned from
-   the first run: the prompt carries a dated calendar because a small
-   model cannot do date arithmetic; the evidence sentence is re-resolved
-   by the heuristic's date parser and wins over the model's date; and
-   placeholder values ("none", "unknown") are dropped, because the model
-   fills every slot it was told about.
-2. **Heuristic**: `NSDataDetector` finds dates; a lexicon of event words
-   (interview, surgery, wedding, trip, exam, moving, baby, presentation…)
-   near a date proposes "check in the day after"; "partner/wife/husband/
-   kids/works at" patterns propose facts. Deterministic, tested.
+1. **Proposer.** The on-device model (iOS 26 on Apple-Intelligence
+   devices; verified working in the simulator on the Mac Studio) with
+   guided generation into a `@Generable` struct — events with a date and
+   an evidence sentence, plus facts. The prompt carries a dated calendar
+   because a small model cannot do date arithmetic, and the schema
+   descriptions carry no example text, since a small model copies an
+   example into every answer. Without a model, the **heuristic**
+   (`Logic/Suggestions.swift`): `NSDataDetector` and a relative-phrase
+   parser find days; a lexicon of event words near a day, or a clear
+   "ahead" marker, proposes "check in the day after"; a handful of
+   phrasings ("her husband X", "started at Y", "moved to Z", "allergic
+   to") propose facts. Each pattern takes only the phrasing that states
+   the thing — "working with Sarah" is not an employer — and a sentence
+   the note-writer opens about themselves proposes nothing.
+2. **Rules** (`Logic/Grounding.swift`, tested), run on every draft from
+   either proposer. A follow-up is kept only if its evidence sentence is
+   in the note (verbatim, or nearly) and names an event or a day; the
+   sentence's own day, resolved by the heuristic's parser, sets the due
+   date and beats the proposer's arithmetic; an event more than a few
+   days gone is a story. Its wording must be the note's words plus
+   asking-words — a title that reads a feeling or a plan into the note
+   falls back to the event's canonical line, or is dropped when there is
+   none. A fact is kept only if every word of its value is the note's
+   (inflections allowed), the label is a fact and not a mood, plan or
+   opinion, and the value is a detail rather than a passage or a
+   placeholder ("none", "unknown"). Duplicates collapse.
+3. **Judge** (`Logic/JudgeLoop.swift`, tested with stand-ins). A second
+   model session reads the surviving proposals against the note and
+   rejects, with a reason, anything ungrounded, inferred, about the
+   note-writer, mis-dated or repeated. Rejections go back to the first
+   session, which drafts again in the same conversation; the new draft
+   runs through the rules and the judge once more. This stops when the
+   judge has nothing to reject or after the configured number of rounds
+   (default two), and at the cap the last verdict trims. What the judge
+   rejected once never comes back, whatever the revision says. A judge
+   that cannot answer leaves the rule-checked draft as it is; without a
+   model at all, the heuristic runs through the rules with no judge.
+
+Settings carries the two prompts, the judge toggle and the round count as
+device preferences (`SuggestionSettings`), each resettable to its default
+(`Logic/Prompts.swift`); the sheet says how many proposals were set aside.
 
 Proposals are editable in the sheet — wording and date of a follow-up,
 label and value of a fact — because the model's phrasing is a draft, not
-a verdict. Two guards on the model path, both learned from use: the
-schema descriptions carry no example text, since a small model copies an
-example into every answer ("Ask how the interview went" appeared on notes
-about anything); and an event is kept only if its evidence sentence is
-actually in the note and it carries a date or an event word.
+a verdict.
 
 ### Summary
 

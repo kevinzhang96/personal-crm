@@ -1,7 +1,10 @@
 // What a note implies: a follow-up on an event it mentions, or a fact
 // worth keeping. The heuristic extractor here is deterministic and
 // always available; Services/Extractor.swift puts the on-device language
-// model in front of it when the device has one. Both only propose.
+// model in front of it when the device has one. Both only propose, and
+// both are read by the same rules (Grounding) before the reader sees a
+// word: an event needs a day or a clear "ahead", a fact needs the note's
+// own words, and anything less is left out.
 
 import Foundation
 
@@ -44,14 +47,19 @@ struct Suggestion: Identifiable, Equatable {
     }
 }
 
-protocol SuggestionExtractor {
-    func suggestions(for text: String, now: Date) async throws -> [Suggestion]
-}
-
-struct HeuristicExtractor: SuggestionExtractor {
+struct HeuristicExtractor: SuggestionProposer {
     var calendar = Calendar.current
     /// Follow-ups land the morning after the event.
     static let followUpHour = 9
+
+    func propose(note: String, now: Date) async throws -> [Suggestion] {
+        suggestions(for: note, now: now)
+    }
+
+    /// The heuristic has no second draft in it; what stood, stands.
+    func revise(note: String, kept: [Suggestion], rejected: [Rejection], now: Date) async throws -> [Suggestion] {
+        kept
+    }
 
     func suggestions(for text: String, now: Date) -> [Suggestion] {
         var out: [Suggestion] = []
@@ -68,6 +76,8 @@ struct HeuristicExtractor: SuggestionExtractor {
 
     private func followUp(in sentence: String, now: Date) -> Suggestion? {
         guard let title = Self.eventTitle(in: sentence) else { return nil }
+        // The note-writer's own interview is not the friend's.
+        guard Self.aboutSelf.firstMatch(in: sentence, range: NSRange(sentence.startIndex..., in: sentence)) == nil else { return nil }
         let eventDay: Date
         if let explicit = Self.date(in: sentence, now: now, calendar: calendar) {
             // An event more than a few days gone is a story, not a follow-up.
@@ -115,7 +125,10 @@ struct HeuristicExtractor: SuggestionExtractor {
         }
 
         if lower.contains("day after tomorrow") { return days(2) }
+        if lower.range(of: "\\byesterday\\b", options: .regularExpression) != nil { return days(-1) }
         if lower.range(of: "\\btomorrow\\b", options: .regularExpression) != nil { return days(1) }
+        if lower.contains("last week") { return days(-7) }
+        if lower.contains("last month") { return calendar.date(byAdding: .month, value: -1, to: today) }
         if lower.range(of: "\\b(tonight|today|later today)\\b", options: .regularExpression) != nil { return today }
         if lower.contains("next weekend") { return weekday(7, strictlyAfter: true).flatMap { calendar.date(byAdding: .day, value: 7, to: $0) } }
         if lower.contains("this weekend") {
@@ -133,6 +146,10 @@ struct HeuristicExtractor: SuggestionExtractor {
         }
         let names = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
         for (i, name) in names.enumerated() {
+            // "last Thursday" is behind us, however near the next one is.
+            if lower.range(of: "\\blast \(name)\\b", options: .regularExpression) != nil {
+                return weekday(i + 1, strictlyAfter: false).flatMap { calendar.date(byAdding: .day, value: -7, to: $0) }
+            }
             if lower.range(of: "\\bnext \(name)\\b", options: .regularExpression) != nil { return weekday(i + 1, strictlyAfter: true) }
             if lower.range(of: "\\b(this |on )?\(name)\\b", options: .regularExpression) != nil { return weekday(i + 1, strictlyAfter: false) }
         }
@@ -181,31 +198,39 @@ struct HeuristicExtractor: SuggestionExtractor {
         }
     }
 
+    /// Words that name an occasion in someone's life. Each is specific
+    /// enough to be one: "match", "scan", "results" and "hearing" were
+    /// here once and matched tennis, documents and listening.
     private static let events: [Event] = [
         Event("\\binterview", "Ask how the interview went"),
         Event("\\bsurgery|\\boperation\\b|\\bprocedure\\b", "Check in after the surgery"),
         Event("\\bwedding", "Ask about the wedding"),
         Event("\\bfuneral|\\bpassed away|\\bmemorial", "Check in on how they're doing"),
-        Event("\\bbaby\\b|\\bdue date\\b", "Check in about the baby"),
-        Event("\\bexams?\\b|\\bfinals\\b|\\bbar exam|\\bboards\\b", "Ask how the exam went"),
-        Event("\\bpresentation|\\bpitch\\b|\\bdemo\\b|\\bkeynote|\\bgiving a talk|\\btalk at\\b", "Ask how the presentation went"),
-        Event("\\bnew job\\b|\\bfirst day\\b|\\bstarts? at\\b|\\bstarting at\\b", "Ask how the new job is going"),
-        Event("\\bmov(e|ing)\\b|\\bnew (house|place|apartment)\\b|\\bclosing on\\b", "Ask how the move went"),
-        Event("\\btrip\\b|\\bvacation|\\bholiday\\b|\\bflight|\\bflying\\b|\\btravel", "Ask how the trip was"),
-        Event("\\bmarathon|\\brace\\b|\\btournament|\\bcompetition|\\bmatch\\b|\\bbig game\\b", "Ask how the race went"),
-        Event("\\bdoctor|\\bappointment|\\bcheck-?up\\b|\\bresults\\b|\\bbiopsy|\\bscan\\b", "Ask how the appointment went"),
-        Event("\\blaunch|\\bdeadline|\\brelease\\b|\\bshipping\\b", "Ask how the launch went"),
-        Event("\\bconference|\\bsummit|\\bhackathon|\\boffsite", "Ask how the conference was"),
-        Event("\\brecital|\\bconcert|\\bgig\\b|\\bperformance|\\bopening night", "Ask how the show went"),
-        Event("\\bhearing\\b|\\bcourt\\b|\\btrial\\b", "Ask how the hearing went"),
-        Event("\\bbirthday|\\bparty\\b|\\banniversary", "Ask how the party was"),
-        Event("\\bdate night|\\bfirst date|\\ba date\\b", "Ask how the date went"),
+        Event("\\bdue date\\b|\\bbaby('s| is) due\\b|\\bexpecting\\b|\\bhaving a baby\\b|\\bbaby (comes|arrives)\\b", "Check in about the baby"),
+        Event("\\bexams?\\b|\\bfinals\\b|\\bbar exam|\\bthesis defen[cs]e|\\bdissertation\\b", "Ask how the exam went"),
+        Event("\\bpresentation|\\bpitch\\b|\\bdemo day\\b|\\bkeynote|\\bgiving a talk|\\btalk at\\b", "Ask how the presentation went"),
+        Event("\\bnew job\\b|\\bfirst day\\b", "Ask how the new job is going"),
+        Event("\\bmoving (to|into|out|house|home|in)\\b|\\bthe move\\b|\\bnew (house|place|apartment|flat)\\b|\\bclosing on\\b", "Ask how the move went"),
+        Event("\\btrip\\b|\\bvacation|\\bholiday\\b|\\bflight\\b|\\bflying (to|out|home|back)\\b|\\btravel+ing to\\b", "Ask how the trip was"),
+        Event("\\bmarathon|\\btriathlon|\\brace day\\b|\\btournament|\\bcompetition|\\bbig game\\b", "Ask how the race went"),
+        Event("\\bappointment\\b|\\bcheck-?up\\b|\\bbiopsy|\\bMRI\\b|\\bspecialist\\b", "Ask how the appointment went"),
+        Event("\\blaunch(es|ing)?\\b|\\bdeadline\\b|\\bship date\\b", "Ask how the launch went"),
+        Event("\\bconference|\\bsummit\\b|\\bhackathon|\\boffsite", "Ask how the conference was"),
+        Event("\\brecital|\\bconcert|\\bgig\\b|\\bopening night|\\bperformance\\b(?! review)", "Ask how the show went"),
+        Event("\\bcourt (date|hearing)|\\bcustody hearing|\\bthe trial\\b", "Ask how the hearing went"),
+        Event("\\bbirthday party|\\bhousewarming|\\banniversary\\b|\\bparty\\b", "Ask how the party was"),
+        Event("\\bdate night|\\bfirst date\\b", "Ask how the date went"),
     ]
 
-    /// Words that put an undated event in the future rather than the past.
+    /// Words that put an undated event ahead rather than behind. "has a"
+    /// and "getting" were here once and put every possession in the future.
     private static let futureMarker = try! NSRegularExpression(
-        pattern: "\\b(will|going to|gonna|next|soon|upcoming|coming up|about to|planning|plans to|has an?|has (her|his|their)|got an?|getting|is (having|doing|giving|taking|starting|flying|leaving|moving))\\b",
+        pattern: "\\b(will|going to|gonna|next|soon|upcoming|coming up|about to|planning to|plans to|is (having|giving|starting|leaving|flying))\\b",
         options: .caseInsensitive)
+
+    /// A sentence the note-writer opens about themselves.
+    private static let aboutSelf = try! NSRegularExpression(
+        pattern: "^\\W*(I|I'm|I’m|I've|I’ve|I'll|I’ll|My)\\b", options: [])
 
     private struct FactRule {
         let pattern: NSRegularExpression
@@ -222,16 +247,19 @@ struct HeuristicExtractor: SuggestionExtractor {
     private static let name = "[A-Z][a-zA-Z'\\-]+"
     private static let place = "[A-Z][a-zA-Z.\\-]*(?: [A-Z][a-zA-Z.\\-]*){0,2}"
 
+    /// Each takes only the phrasing that states the fact: "working with
+    /// Sarah" is not an employer, "would love to see you" is not a gift,
+    /// "her son is Tall" is not a name.
     private static let factPatterns: [FactRule] = [
         FactRule("(?i:her|his|their) (?i:wife|husband|partner|girlfriend|boyfriend|fianc[ée]e?|spouse)(?i:,| is| is named| is called| named| called)? (\(name))", "Partner"),
-        FactRule("(?i:works|working|job|started|starting|interning|new role) (?i:at|for|with) (\(place))", "Works at"),
+        FactRule("(?i:works|working|job|started|starting|interning|new role) (?i:at|for) (\(place))", "Works at"),
         FactRule("(?i:moved|moving|lives|living|relocated|relocating) (?i:to|in|into|back to) (\(place))", "Lives in"),
-        FactRule("(?i:daughter|son|kids?|children?|twins)\\b[^.!?]*?\\b(?i:named|called|is|are) (\(name)(?: (?:and|&) \(name))*)", "Kids"),
+        FactRule("(?i:daughter|son|kids?|children?|twins)\\b[^.!?]*?\\b(?i:named|called) (\(name)(?: (?:and|&) \(name))*)", "Kids"),
         FactRule("(?i:allergic to) ([a-zA-Z]+(?: (?:and|&) [a-zA-Z]+)*)", "Allergy"),
         FactRule("(?i:got|adopted|rescued) (?i:a |an )?(?i:new )?((?i:puppy|dog|cat|kitten|rabbit|parrot))(?: (?i:named|called) (\(name)))?", "Pets") { groups in
             groups.count > 1 ? "\(groups[1]) (\(groups[0].lowercased()))" : groups.first?.lowercased()
         },
-        FactRule("(?i:been wanting|has been eyeing|really wants|would love) (?i:a |an |the )?([a-z][^.!?,;]{2,40})", "Gift idea"),
+        FactRule("(?i:been wanting|has been eyeing|really wants|would love) (?i:a|an|the) ([a-z][^.!?,;]{2,40})", "Gift idea"),
     ]
 
     static func sentences(_ text: String) -> [String] {

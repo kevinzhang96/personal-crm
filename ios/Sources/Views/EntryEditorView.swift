@@ -38,6 +38,7 @@ struct EntryEditorView: View {
     @State private var player = Player()
     @State private var saving = false
     @State private var suggestions: SuggestionBatch?
+    @State private var stage: JudgeLoop.Stage?
     @State private var savedEntry: Entry?
     @State private var removedAudio = false
     @State private var confirmDelete = false
@@ -81,7 +82,7 @@ struct EntryEditorView: View {
                 if let file = try? AudioStore.adopt(url) { attach(file, duration: nil) }
             }
             .sheet(item: $suggestions) { batch in
-                SuggestionsSheet(suggestions: batch.items, friends: friends, entry: savedEntry) {
+                SuggestionsSheet(outcome: batch.outcome, friends: friends, entry: savedEntry) {
                     SummaryEngine.shared.refresh(all: friends, context: context)
                     dismiss()
                 }
@@ -102,8 +103,9 @@ struct EntryEditorView: View {
                 if saving {
                     VStack(spacing: 10) {
                         ProgressView()
-                        Text(SuggestionEngine.usesLanguageModel ? "Reading your note…" : "Saving…")
+                        Text(stageLabel)
                             .font(.footnote.weight(.semibold))
+                            .contentTransition(.numericText())
                     }
                     .padding(22)
                     .glassEffect(.regular, in: .rect(cornerRadius: 18))
@@ -319,12 +321,24 @@ struct EntryEditorView: View {
             dismiss()
             return
         }
-        let found = await SuggestionEngine.suggestions(for: entry.body)
-        if found.isEmpty {
+        let outcome = await SuggestionEngine.suggestions(for: entry.body) { step in
+            Task { @MainActor in stage = step }
+        }
+        if outcome.suggestions.isEmpty {
             SummaryEngine.shared.refresh(all: friends, context: context)
             dismiss()
         } else {
-            suggestions = SuggestionBatch(items: found)
+            suggestions = SuggestionBatch(outcome: outcome)
+        }
+    }
+
+    /// What the wait is for: reading, a second opinion, a second draft.
+    private var stageLabel: String {
+        guard SuggestionEngine.usesLanguageModel else { return "Saving…" }
+        switch stage {
+        case .judging(let round): return round == 1 ? "Getting a second opinion…" : "Checking again…"
+        case .revising: return "Revising…"
+        default: return "Reading your note…"
         }
     }
 
@@ -337,7 +351,7 @@ struct EntryEditorView: View {
 /// One extractor run, as a sheet item.
 struct SuggestionBatch: Identifiable {
     let id = UUID()
-    let items: [Suggestion]
+    let outcome: JudgeOutcome
 }
 
 /// Pick the people an entry was with.

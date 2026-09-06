@@ -29,7 +29,7 @@ final class SummaryEngine {
         let input = Self.input(for: friend)
         var text: String?
         #if canImport(FoundationModels)
-        if #available(iOS 26.0, *), FoundationExtractor.isAvailable, !input.entries.isEmpty {
+        if #available(iOS 26.0, *), FoundationProposer.isAvailable, !input.entries.isEmpty {
             text = try? await FoundationSummarizer.summarize(input, now: now)
         }
         #endif
