@@ -81,6 +81,100 @@ struct GroundingTests {
         #expect(Grounding.vet(event, note: "Her interview at Figma is next week.", now: now, calendar: calendar) == .drop("an event is not a fact"))
     }
 
+    @Test("a label the model invented is not a kind of detail Tend keeps; a synonym is")
+    func labels() {
+        let note = "She's nervous about it, and off her feet for a couple of weeks. Her employer is Figma and her kids are called Lu and Sam."
+        func vet(_ s: Suggestion) -> Grounding.Verdict { Grounding.vet(s, note: note, now: now, calendar: calendar) }
+        #expect(vet(.fact("Nervous", "about it")) == .drop("not a kind of detail worth keeping"))
+        #expect(vet(.fact("Mood", "nervous")) == .drop("a mood, plan or opinion is a guess, not a fact"))
+        #expect(vet(.fact("Duration of recovery", "couple of weeks")) == .drop("not a kind of detail worth keeping"))
+        if case .keep(let s) = vet(.fact("Employer", "Figma")) { #expect(s.title == "Works at") } else { Issue.record("employer") }
+        if case .keep(let s) = vet(.fact("Children", "Lu and Sam")) { #expect(s.title == "Kids") } else { Issue.record("children") }
+        if case .keep(let s) = vet(.fact("works at", "Figma")) { #expect(s.title == "Works at") } else { Issue.record("case") }
+    }
+
+    @Test("a question to the friend, or the sentence said back, becomes the occasion's own line; two on one occasion are one")
+    func questionsAndRepeats() {
+        let note = "Sam has knee surgery on Thursday. He'll be off his feet for a couple of weeks after."
+        let question = Suggestion.followUp("When is the surgery?", due: day(9, 11), because: "Sam has knee surgery on Thursday.")
+        #expect(review([question], note: note).kept.first?.title == "Check in after the surgery")
+        let echo = Suggestion.followUp("Sam has knee surgery on Thursday", due: day(9, 11), because: "Sam has knee surgery on Thursday.")
+        #expect(review([echo], note: note).kept.first?.title == "Check in after the surgery")
+        let both = review([question, echo, .followUp("Check in after the surgery", due: day(9, 11), because: "Sam has knee surgery on Thursday.")], note: note)
+        #expect(both.kept.count == 1)
+        #expect(both.rejected.map(\.reason) == ["a repeat of another proposal", "a repeat of another proposal"])
+    }
+
+    @Test("a fact's value has to sit where the note says that kind of thing, about the friend")
+    func labelCues() {
+        let note = "Her interview at Figma is next Thursday. Dinner with Maya and Tom; Maya just got back from Peru. Her husband Marco just started at Anthropic. Tom's startup is launching next month. He's the best man at his brother's wedding next spring."
+        func reason(_ s: Suggestion) -> String? {
+            if case .drop(let why) = Grounding.vet(s, note: note, now: now, calendar: calendar) { return why }
+            return nil
+        }
+        #expect(reason(.fact("Works at", "Figma")) == "the note doesn't say that about them")
+        #expect(reason(.fact("Partner", "Maya")) == "the note doesn't say that about them")
+        #expect(reason(.fact("Kids", "Tom")) == "the note doesn't say that about them")
+        #expect(reason(.fact("Lives in", "Peru")) == "the note doesn't say that about them")
+        #expect(reason(.fact("Works at", "Anthropic")) == "a detail about someone else in the note")
+        #expect(reason(.fact("Works at", "next month")) == "a time, not a detail")
+        #expect(reason(.fact("Lives in", "next spring")) == "a time, not a detail")
+        #expect(reason(.fact("Partner", "Marco")) == nil)
+        let stated = "Dev starts his new job at Stripe on Monday. She lives in Long Island City now. They got a puppy named Biscuit. She's at Meta and her kids are called Lu."
+        let kept = review([.fact("Works at", "Stripe"), .fact("Lives in", "Long Island City"), .fact("Pets", "Biscuit")], note: stated).kept
+        #expect(kept.count == 3)
+        // The relative comes after the value: still hers — and still needs the note to say she works there.
+        #expect(Grounding.vet(.fact("Works at", "Meta"), note: stated, now: now, calendar: calendar) == .drop("the note doesn't say that about them"))
+        #expect(review([.fact("Works at", "Meta")], note: "She works at Meta and her kids are called Lu.").kept.count == 1)
+    }
+
+    @Test("a name-kind fact needs a name the note wrote as one, and a cue close to the value")
+    func namesAndNearness() {
+        let note = "She has a baby and two dogs. She's working with Sarah on the redesign. um we talked for like an hour and then we said we'd do dinner sometime. Her husband Marco is lovely."
+        func reason(_ s: Suggestion) -> String? {
+            if case .drop(let why) = Grounding.vet(s, note: note, now: now, calendar: calendar) { return why }
+            return nil
+        }
+        #expect(reason(.fact("Kids", "two dogs")) == "a name is expected here, and the note gives none")
+        #expect(reason(.fact("Works at", "redesign")) == "a name is expected here, and the note gives none")
+        #expect(reason(.fact("Likes", "dinner")) == "the note doesn't say that about them")
+        #expect(reason(.fact("Partner", "Marco")) == nil)
+    }
+
+    @Test("what the model actually did: phrases, occasions and nothing-in-particular as fact values")
+    func modelFactShapes() {
+        let note = "Big bar exam tomorrow. She's been studying nonstop. He mentioned nothing concrete about the company."
+        func reason(_ s: Suggestion) -> String? {
+            if case .drop(let why) = Grounding.vet(s, note: note, now: now, calendar: calendar) { return why }
+            return nil
+        }
+        #expect(reason(.fact("Partner", "She's been studying nonstop.")) == "the value is a phrase from the note, not a name, place or thing")
+        #expect(reason(.fact("Works at", "work is busy")) == "the value is a phrase from the note, not a name, place or thing")
+        #expect(reason(.fact("Job", "bar exam")) == "an event is not a fact")
+        #expect(reason(.fact("Job", "company")) == "the value names nothing in particular")
+        #expect(reason(.fact("Job", "nothing concrete")) == "the value is a placeholder")
+        let sound = "Their kids are called Lu and Sam. He's allergic to shellfish and peanuts."
+        #expect(review([.fact("Kids", "Lu and Sam"), .fact("Allergy", "shellfish and peanuts")], note: sound).kept.count == 2)
+    }
+
+    @Test("a follow-up that repeats the note, or hangs on the note-writer's own Saturday, is dropped")
+    func modelFollowUpShapes() {
+        let ours = "Rescheduled our dinner to next Friday because her sitter cancelled."
+        let echo = Suggestion.followUp(ours, due: day(9, 12), because: ours)
+        #expect(Grounding.vet(echo, note: ours, now: now, calendar: calendar) == .drop("the note-writer is part of it"))
+        let match = "We watched the match on Saturday and ordered too much pizza."
+        let pizza = Suggestion.followUp("Did you order too much pizza?", due: day(9, 6), because: match)
+        #expect(Grounding.vet(pizza, note: match, now: now, calendar: calendar) == .drop("the note-writer is part of it"))
+        let hers = "Her interview at Figma is next week and she is nervous about it."
+        let restated = Suggestion.followUp("Her interview at Figma is next week and she is nervous", due: day(9, 13), because: hers)
+        #expect(review([restated], note: hers).kept.first?.title == "Ask how the interview went")
+        let noEvent = "She's going to Lisbon next Saturday for a bit."
+        let saidBack = Suggestion.followUp("She's going to Lisbon next Saturday for a bit", due: day(9, 13), because: noEvent)
+        #expect(Grounding.vet(saidBack, note: noEvent, now: now, calendar: calendar) == .drop("the wording doesn't come from the note"))
+        let lisbon = "She's going to Lisbon next Saturday."
+        #expect(review([.followUp("Ask how Lisbon was", due: day(9, 13), because: lisbon)], note: lisbon).kept.count == 1)
+    }
+
     // MARK: wording
 
     @Test("wording that strays from the note falls back to the event's own line, or is dropped when there is none")

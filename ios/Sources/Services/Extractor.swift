@@ -50,8 +50,8 @@ enum SuggestionEngine {
         let loop = JudgeLoop(maxRounds: settings.judgeEnabled ? settings.rounds : 0)
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *), FoundationProposer.isAvailable {
-            let proposer = FoundationProposer(instructions: settings.extractorPrompt)
-            let judge = settings.judgeEnabled ? FoundationJudge(instructions: settings.judgePrompt) : nil
+            let proposer = modelProposer(instructions: settings.extractorPrompt)
+            let judge = settings.judgeEnabled ? modelJudge(instructions: settings.judgePrompt) : nil
             if var outcome = try? await loop.run(note: trimmed, now: now, proposer: proposer, judge: judge, progress: progress) {
                 outcome.modelled = true
                 return outcome
@@ -60,6 +60,25 @@ enum SuggestionEngine {
         #endif
         return (try? await loop.run(note: trimmed, now: now, proposer: HeuristicExtractor(), judge: nil, progress: progress)) ?? .empty
     }
+
+    #if canImport(FoundationModels)
+    /// The model path's proposer: the heuristic's reliable few first,
+    /// then whatever the model adds. Measured on the corpus, the model
+    /// alone found less than the heuristic and phrased it worse; together
+    /// the rules dedupe by occasion with the heuristic's wording winning.
+    @available(iOS 26.0, *)
+    static func modelProposer(instructions: String) -> SuggestionProposer {
+        CombinedProposer(heuristic: HeuristicExtractor(), model: FoundationProposer(instructions: instructions))
+    }
+
+    /// The model path's judge, which reads facts only: on follow-ups it
+    /// rejected the true ones for reasons it made up, on facts it caught
+    /// another person's employer and a place only visited.
+    @available(iOS 26.0, *)
+    static func modelJudge(instructions: String) -> SuggestionJudge {
+        FoundationJudge(instructions: instructions)
+    }
+    #endif
 
     static var usesLanguageModel: Bool {
         #if canImport(FoundationModels)
@@ -74,16 +93,16 @@ enum SuggestionEngine {
 @available(iOS 26.0, *)
 @Generable
 struct ExtractedNote {
-    @Guide(description: "Specific events in the friend's own life that the note says are coming up or have just happened. Usually empty.")
+    @Guide(description: "Dated occasions in the friend's own life that the note says are coming up or have just happened. Usually empty.", .maximumCount(3))
     var events: [ExtractedEvent]
-    @Guide(description: "Durable facts about the friend the note states outright: partner, kids, job, city, pet, allergy, a thing they want. Usually empty.")
+    @Guide(description: "Durable details about the friend that the note states outright. Usually empty.", .maximumCount(4))
     var facts: [ExtractedFact]
 }
 
 @available(iOS 26.0, *)
 @Generable
 struct ExtractedEvent {
-    @Guide(description: "One short imperative sentence saying what to ask the friend about after the event, naming the event in the note's own words")
+    @Guide(description: "One short instruction to the note-writer about what to ask the friend afterwards, naming the occasion in the note's own words")
     var followUp: String
     @Guide(description: "The event's day as YYYY-MM-DD copied from the calendar given, or empty when the note names no day")
     var eventDate: String
@@ -91,12 +110,34 @@ struct ExtractedEvent {
     var evidence: String
 }
 
+/// The kinds of detail Tend keeps, as a closed set the model chooses
+/// from: a free-text label became "Duration of recovery" and "Nervous".
+@available(iOS 26.0, *)
+@Generable
+enum ExtractedFactKind: String {
+    case partner, kids, worksAt, role, livesIn, likes, giftIdea, allergy, pets
+
+    var label: String {
+        switch self {
+        case .partner: "Partner"
+        case .kids: "Kids"
+        case .worksAt: "Works at"
+        case .role: "Role"
+        case .livesIn: "Lives in"
+        case .likes: "Likes"
+        case .giftIdea: "Gift idea"
+        case .allergy: "Allergy"
+        case .pets: "Pets"
+        }
+    }
+}
+
 @available(iOS 26.0, *)
 @Generable
 struct ExtractedFact {
-    @Guide(description: "A short label such as Partner, Kids, Works at, Lives in, Likes, Gift idea, Allergy, Pets")
-    var label: String
-    @Guide(description: "The value, in the note's own words and as brief as they allow")
+    @Guide(description: "Which kind of detail this is")
+    var kind: ExtractedFactKind
+    @Guide(description: "The detail itself: one name, place or thing in the note's own words, never a sentence")
     var value: String
 }
 
@@ -122,6 +163,11 @@ struct JudgeVerdict {
 /// transcript is read to this many characters.
 private let modelNoteLimit = 2000
 
+/// A small model asked for a list can keep listing until the window is
+/// full; a note's worth of proposals fits in far less than this.
+@available(iOS 26.0, *)
+private let bounded = GenerationOptions(maximumResponseTokens: 600)
+
 /// A dated calendar, because a small model cannot count days.
 @available(iOS 26.0, *)
 private func datedPreamble(now: Date, calendar: Calendar) -> String {
@@ -132,12 +178,13 @@ private func datedPreamble(now: Date, calendar: Calendar) -> String {
     return "Today is \(weekday), \(today).\nCalendar: \(days.joined(separator: ", "))."
 }
 
-/// A proposal as one line the model can be told about.
+/// A proposal as one line the model can be told about, its kind first
+/// so the judge applies the right test.
 private func describe(_ s: Suggestion) -> String {
     if let due = s.dueDate {
-        return "Follow-up \"\(s.title)\" on \(due.formatted(.iso8601.year().month().day())), because the note says: \"\(s.detail)\""
+        return "FOLLOW-UP \"\(s.title)\" on \(due.formatted(.iso8601.year().month().day())); quoted sentence: \"\(s.detail)\""
     }
-    return "Fact \(s.title): \(s.detail)"
+    return "FACT \(s.title): \(s.detail)"
 }
 
 /// The first session: drafts from the note, and drafts again in the same
@@ -155,7 +202,7 @@ final class FoundationProposer: SuggestionProposer {
 
     func propose(note: String, now: Date) async throws -> [Suggestion] {
         let prompt = datedPreamble(now: now, calendar: calendar) + "\n\nNote:\n" + note.prefix(modelNoteLimit)
-        return suggestions(from: try await session.respond(to: prompt, generating: ExtractedNote.self).content, now: now)
+        return suggestions(from: try await session.respond(to: prompt, generating: ExtractedNote.self, options: bounded).content, now: now)
     }
 
     func revise(note: String, kept: [Suggestion], rejected: [Rejection], now: Date) async throws -> [Suggestion] {
@@ -169,7 +216,7 @@ final class FoundationProposer: SuggestionProposer {
             Answer again from the note alone: keep what stood, leave out what was rejected, and add nothing the note does not state. \
             An emptier answer is fine.
             """
-        return suggestions(from: try await session.respond(to: prompt, generating: ExtractedNote.self).content, now: now)
+        return suggestions(from: try await session.respond(to: prompt, generating: ExtractedNote.self, options: bounded).content, now: now)
     }
 
     /// The model's answer as proposals, taken at its word: Grounding reads
@@ -182,8 +229,7 @@ final class FoundationProposer: SuggestionProposer {
             out.append(.followUp(event.followUp, due: due, because: event.evidence))
         }
         for fact in extracted.facts {
-            out.append(.fact(fact.label.trimmingCharacters(in: .whitespacesAndNewlines),
-                             fact.value.trimmingCharacters(in: .whitespacesAndNewlines)))
+            out.append(.fact(fact.kind.label, fact.value.trimmingCharacters(in: .whitespacesAndNewlines)))
         }
         return out
     }
@@ -195,8 +241,28 @@ final class FoundationProposer: SuggestionProposer {
     }
 }
 
+/// Both proposers at once, the heuristic's answer first.
+@available(iOS 26.0, *)
+final class CombinedProposer: SuggestionProposer {
+    let heuristic: HeuristicExtractor
+    let model: FoundationProposer
+
+    init(heuristic: HeuristicExtractor, model: FoundationProposer) {
+        self.heuristic = heuristic
+        self.model = model
+    }
+
+    func propose(note: String, now: Date) async throws -> [Suggestion] {
+        heuristic.suggestions(for: note, now: now) + (try await model.propose(note: note, now: now))
+    }
+
+    func revise(note: String, kept: [Suggestion], rejected: [Rejection], now: Date) async throws -> [Suggestion] {
+        heuristic.suggestions(for: note, now: now) + (try await model.revise(note: note, kept: kept, rejected: rejected, now: now))
+    }
+}
+
 /// The second session: a fresh one each round, so it reads the list in
-/// front of it and not its own earlier verdicts.
+/// front of it and not its own earlier verdicts. It sees facts only.
 @available(iOS 26.0, *)
 struct FoundationJudge: SuggestionJudge {
     let instructions: String
@@ -207,10 +273,12 @@ struct FoundationJudge: SuggestionJudge {
     }
 
     func review(note: String, proposals: [Suggestion], now: Date) async throws -> [Rejection] {
+        let proposals = proposals.filter { !$0.isFollowUp }
+        guard !proposals.isEmpty else { return [] }
         let session = LanguageModelSession(instructions: instructions)
         let listing = proposals.enumerated().map { "\($0.offset + 1). \(describe($0.element))" }.joined(separator: "\n")
         let prompt = datedPreamble(now: now, calendar: calendar) + "\n\nNote:\n" + note.prefix(modelNoteLimit) + "\n\nProposals:\n" + listing
-        let report = try await session.respond(to: prompt, generating: JudgeReport.self).content
+        let report = try await session.respond(to: prompt, generating: JudgeReport.self, options: bounded).content
         return report.verdicts.compactMap { verdict in
             guard !verdict.keep, proposals.indices.contains(verdict.number - 1) else { return nil }
             let reason = verdict.reason.trimmingCharacters(in: .whitespacesAndNewlines)
