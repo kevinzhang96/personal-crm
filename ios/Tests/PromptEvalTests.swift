@@ -181,8 +181,8 @@ struct PromptEvalTests {
         let loop = JudgeLoop(maxRounds: rounds, calendar: PromptCorpus.calendar)
         var traces: [CaseTrace] = []
         for c in Self.cases {
-            let proposer = TracingProposer(FoundationProposer(instructions: reading))
-            let judge = TracingJudge(FoundationJudge(instructions: judging))
+            let proposer = TracingProposer(SuggestionEngine.modelProposer(instructions: reading))
+            let judge = TracingJudge(SuggestionEngine.modelJudge(instructions: judging))
             let started = Date()
             var outcome = JudgeOutcome.empty
             var error: String?

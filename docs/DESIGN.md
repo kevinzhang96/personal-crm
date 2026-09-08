@@ -245,10 +245,17 @@ eager — it filled every slot, read feelings into notes, took the
 note-writer's plans for the friend's — so the pipeline is now a proposer,
 a set of rules, and a judge:
 
-1. **Proposer.** The on-device model (iOS 26 on Apple-Intelligence
-   devices; verified working in the simulator on the Mac Studio) with
-   guided generation into a `@Generable` struct — events with a date and
-   an evidence sentence, plus facts. The prompt carries a dated calendar
+1. **Proposer.** On a device with the model, the heuristic's proposals
+   *and* the on-device model's (iOS 26 on Apple-Intelligence devices;
+   verified working in the simulator on the Mac Studio): the model alone
+   found less than the heuristic on the corpus and phrased it worse, so
+   the two are concatenated, heuristic first, and the rules dedupe by
+   occasion with the heuristic's wording winning. The model uses guided
+   generation into a `@Generable` struct — at most three events with a
+   date and an evidence sentence, at most four facts whose kind is a
+   closed enum (a free-text label became "Nervous" and "Duration of
+   recovery") — under a response-token cap, since a note with nothing in
+   it once ran the model to the edge of its window. The prompt carries a dated calendar
    because a small model cannot do date arithmetic, and the schema
    descriptions carry no example text, since a small model copies an
    example into every answer. Without a model, the **heuristic**
@@ -270,11 +277,22 @@ a set of rules, and a judge:
    none. A fact is kept only if every word of its value is the note's
    (inflections allowed), the label is a fact and not a mood, plan or
    opinion, and the value is a detail rather than a passage or a
-   placeholder ("none", "unknown"). Duplicates collapse.
+   placeholder ("none", "unknown"). A fact's value must be a name, place
+   or thing rather than a clause, an occasion or a time; it must sit
+   within a few words of the label's own cue in the note ("works at",
+   "allergic to", "her husband"); a name-kind label needs a name the note
+   capitalised; and a value that follows a relative in the same clause is
+   that relative's. Duplicates collapse, including two follow-ups on one
+   occasion however worded, and a follow-up phrased as a question to the
+   friend or as the sentence said back takes the occasion's own line.
 3. **Judge** (`Logic/JudgeLoop.swift`, tested with stand-ins). A second
-   model session reads the surviving proposals against the note and
-   rejects, with a reason, anything ungrounded, inferred, about the
-   note-writer, mis-dated or repeated. Rejections go back to the first
+   model session reads the surviving *facts* against the note and
+   rejects, with a reason, a value that belongs to someone else, a place
+   only visited, or a phrase. It does not see follow-ups: measured over
+   six passes on the corpus, the on-device model rejected true follow-ups
+   for reasons it made up ("next Thursday is already past", "the quoted
+   sentence is not in the note") while its correct rejections were all
+   facts, so timing and grounding stay with the rules. Rejections go back to the first
    session, which drafts again in the same conversation; the new draft
    runs through the rules and the judge once more. This stops when the
    judge has nothing to reject or after the configured number of rounds
@@ -296,7 +314,11 @@ an eager stand-in proposer that makes every old mistake on purpose must
 come out clean after the rules and a judge applying the judge prompt's
 criteria; what gets past the rules alone is exactly what the judge prompt
 names. A third test, opt-in with `TEND_MODEL_EVAL=1`, runs the corpus
-through the real on-device model and writes a per-round trace.
+through the real on-device model and writes a per-round trace; six
+passes of it took the model path from precision 0.50 / recall 0.83 to
+0.96 / 0.96, with the one false positive left the corpus's own
+capitalised-adjective trap and the one miss a second event inside a
+single sentence.
 
 Proposals are editable in the sheet — wording and date of a follow-up,
 label and value of a fact — because the model's phrasing is a draft, not

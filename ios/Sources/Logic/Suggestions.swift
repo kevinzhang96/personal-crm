@@ -243,7 +243,7 @@ struct HeuristicExtractor: SuggestionProposer {
 
     /// A partner, a parent, a sibling, a boss: their employer, city and
     /// allergies are theirs, not the friend's.
-    private static let someoneElse = try! NSRegularExpression(
+    static let someoneElse = try! NSRegularExpression(
         pattern: "\\b(her|his|their) (husband|wife|partner|boyfriend|girlfriend|fianc[ée]e?|spouse|mom|mum|mother|dad|father|parents?|brother|sister|son|daughter|kids?|children|boss|manager|roommate|cousin|colleague|coworker|co-worker)\\b",
         options: .caseInsensitive)
     private static let relationshipLabels: Set<String> = ["Partner", "Kids", "Pets"]
