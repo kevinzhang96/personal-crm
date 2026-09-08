@@ -50,11 +50,7 @@ struct FriendEditorView: View {
             }
             .onAppear(perform: load)
             .sheet(isPresented: $pickingContact) {
-                ContactPicker { contact in
-                    pickingContact = false
-                    link(contact)
-                }
-                .ignoresSafeArea()
+                ContactsSheet(mode: .one { link($0) })
             }
             .alert("Contacts", isPresented: .init(get: { contactNote != nil }, set: { if !$0 { contactNote = nil } })) {
                 Button("OK") {}
@@ -258,14 +254,12 @@ struct FriendEditorView: View {
     }
 
     private func link(_ contact: CNContact) {
-        Task {
-            var full = contact
-            if await ContactsService.requestAccess(), let fetched = try? ContactsService.fetch(identifier: contact.identifier) {
-                full = fetched
-            }
-            ContactsService.apply(full, to: friend, context: context)
-            load()
-        }
+        // Access was settled before the list; the pick already carries every
+        // key, and the fetch only freshens it. Asking again here was what
+        // raised iOS 18's "select contacts" sheet after the pick.
+        let full = ContactsService.authorized ? ((try? ContactsService.fetch(identifier: contact.identifier)) ?? contact) : contact
+        ContactsService.apply(full, to: friend, context: context)
+        load()
     }
 
     private func save() {

@@ -184,11 +184,12 @@ struct BulkAddView: View {
     private func add() async {
         adding = true
         let tags = tagsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        // One permission ask for the batch; without it the picker's copy of
-        // each contact is what gets applied, which is still a name and a
-        // number.
+        // Access was settled before the list was shown; asking again here
+        // is what used to raise iOS 18's "select contacts" sheet after the
+        // pick. The chosen contacts already carry every key, so the fetch
+        // is only a refresh.
         var authorized = false
-        if case .contacts = source { authorized = await ContactsService.requestAccess() }
+        if case .contacts = source { authorized = ContactsService.authorized }
         for row in selected {
             let friend = Friend(displayName: row.name)
             friend.groups = groups.filter { chosenGroups.contains($0.id) }
