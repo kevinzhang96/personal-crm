@@ -109,7 +109,7 @@ struct GroupsView: View {
         }
         context.delete(group)
         try? context.save()
-        Task { await Notifier.reschedule(context: context) }
+        Task { await AfterChange.run(context: context) }
         deleting = nil
     }
 }
@@ -179,7 +179,7 @@ struct GroupEditorView: View {
         group.name = group.name.trimmingCharacters(in: .whitespaces)
         group.cadenceDays = nudges ? days : nil
         try? context.save()
-        Task { await Notifier.reschedule(context: context) }
+        Task { await AfterChange.run(context: context) }
         dismiss()
     }
 }

@@ -12,7 +12,7 @@ enum BackgroundRefresh {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: nil) { task in
             schedule()
             Task { @MainActor in
-                await Notifier.reschedule(context: container.mainContext)
+                await AfterChange.run(context: container.mainContext)
                 task.setTaskCompleted(success: true)
             }
         }

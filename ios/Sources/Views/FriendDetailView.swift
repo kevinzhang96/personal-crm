@@ -71,7 +71,7 @@ struct FriendDetailView: View {
             Button("Delete", role: .destructive) {
                 context.delete(friend)
                 try? context.save()
-                Task { await Notifier.reschedule(context: context) }
+                Task { await AfterChange.run(context: context) }
                 dismiss()
             }
         }
@@ -350,7 +350,7 @@ struct FriendDetailView: View {
     private func save() {
         friend.updatedAt = now
         try? context.save()
-        Task { await Notifier.reschedule(context: context) }
+        Task { await AfterChange.run(context: context) }
     }
 }
 

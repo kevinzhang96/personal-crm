@@ -133,6 +133,6 @@ struct TodayView: View {
         reminder.done.toggle()
         reminder.doneAt = reminder.done ? now : nil
         try? context.save()
-        Task { await Notifier.reschedule(context: context) }
+        Task { await AfterChange.run(context: context) }
     }
 }

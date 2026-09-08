@@ -288,7 +288,7 @@ struct FriendEditorView: View {
         }
         friend.updatedAt = Date()
         try? context.save()
-        Task { await Notifier.reschedule(context: context) }
+        Task { await AfterChange.run(context: context) }
         dismiss()
     }
 }
