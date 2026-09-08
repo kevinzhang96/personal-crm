@@ -24,7 +24,11 @@ enum Store {
 
     static func container(inMemory: Bool = false) throws -> ModelContainer {
         if inMemory {
-            return try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+            // Explicitly no CloudKit: with the entitlement present the
+            // default is .automatic, and an in-memory store then waits a
+            // hundred seconds for an account before every test.
+            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+            return try ModelContainer(for: schema, configurations: [config])
         }
         let support = try supportDirectory()
         let cloudURL = support.appendingPathComponent("cloud.store")

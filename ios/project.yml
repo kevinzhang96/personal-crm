@@ -45,6 +45,9 @@ targets:
         INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "Put follow-ups, catch-up nudges and logs on a calendar of their own called Tend. Only that calendar is touched, and removing it removes them all."
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: 1
+        # Not offered on Apple silicon Macs: the Contacts picker and the
+        # rest of the phone-only surface are what ITMS-90863 warns about.
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 0.1.0
