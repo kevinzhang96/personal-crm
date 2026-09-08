@@ -8,9 +8,21 @@ import Testing
 
 @MainActor
 struct GroupsTests {
+    /// The containers outlive the tests. Tearing one down mid-run makes
+    /// CoreData's CloudKit store monitor wait, on the main thread, for
+    /// the app's own mirroring to settle — which it never does on a
+    /// simulator with no iCloud account — and the host is killed first.
+    private static var kept: [ModelContainer] = []
+
+    private func container() throws -> ModelContainer {
+        let c = try Store.container(inMemory: true)
+        Self.kept.append(c)
+        return c
+    }
+
     @Test("first launch seeds the five circles as groups, and a friend lands in the one their circle named")
     func seedsAndMigrates() throws {
-        let container = try Store.container(inMemory: true)
+        let container = try container()
         let context = container.mainContext
         let priya = Friend(displayName: "Priya", circle: .close)
         let nobody = Friend(displayName: "N", circle: .none)
@@ -28,7 +40,7 @@ struct GroupsTests {
 
     @Test("a friend with the earlier single group is moved into groups, and one with none gets the default")
     func legacyAndOrphans() throws {
-        let container = try Store.container(inMemory: true)
+        let container = try container()
         let context = container.mainContext
         Groups.ensureSeeded(context: context)
         let groups = Groups.all(context: context)
@@ -48,7 +60,7 @@ struct GroupsTests {
 
     @Test("in several groups, the tightest cadence applies; only no-nudge groups means never; the override wins")
     func cadenceAcrossGroups() throws {
-        let container = try Store.container(inMemory: true)
+        let container = try container()
         let context = container.mainContext
         Groups.ensureSeeded(context: context)
         let groups = Groups.all(context: context)
