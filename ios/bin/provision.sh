@@ -14,27 +14,8 @@ BUNDLE_ID=com.kevinzhang.tend
 NAME=Tend
 PROFILE=tend-appstore
 CERT_NAME="iPhone Distribution: Kevin Zhang (XF283F7SB6)"
-API=https://api.appstoreconnect.apple.com/v1
-
-set -- "$HOME/.appstoreconnect/private_keys"/AuthKey_*.p8
-KEY=$1
-[ -f "$KEY" ] || { echo "No AuthKey_*.p8 in ~/.appstoreconnect/private_keys/" >&2; exit 1; }
-KEY_ID=$(basename "$KEY" .p8); KEY_ID=${KEY_ID#AuthKey_}
-ISSUER=$(cat "$HOME/.appstoreconnect/issuer_id")
-command -v jq >/dev/null || { echo "jq is required (brew install jq)" >&2; exit 1; }
-
-b64() { openssl base64 -e -A | tr '+/' '-_' | tr -d '='; }
-NOW=$(date +%s)
-HEADER=$(printf '{"alg":"ES256","kid":"%s","typ":"JWT"}' "$KEY_ID" | b64)
-CLAIMS=$(printf '{"iss":"%s","iat":%s,"exp":%s,"aud":"appstoreconnect-v1"}' "$ISSUER" "$NOW" $((NOW + 1200)) | b64)
-# ES256 wants the raw r||s signature, and openssl emits DER; convert.
-SIG=$(printf '%s.%s' "$HEADER" "$CLAIMS" \
-  | openssl dgst -sha256 -sign "$KEY" \
-  | openssl asn1parse -inform DER \
-  | awk -F: '/INTEGER/{print $4}' | tr -d '\n' \
-  | xxd -r -p | b64)
-JWT="$HEADER.$CLAIMS.$SIG"
-call() { curl -sSg -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" "$@"; }
+cd "$(dirname "$0")"
+. ./asc.sh
 
 # 1. Bundle id (registered under the team in the developer portal).
 BID=$(call "$API/bundleIds?filter[identifier]=$BUNDLE_ID" | jq -r '.data[] | select(.attributes.identifier=="'"$BUNDLE_ID"'") | .id' | head -1)
@@ -79,10 +60,6 @@ if [ -z "$PID" ]; then
   [ -n "$PID" ] && [ "$PID" != null ] || { echo "could not create profile $PROFILE" >&2; exit 1; }
   echo "created profile $PROFILE ($PID)"
 fi
-DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
-mkdir -p "$DIR"
-call "$API/profiles/$PID" | jq -r '.data.attributes.profileContent' | openssl base64 -d -A > "$DIR/$PROFILE.mobileprovision"
-[ -s "$DIR/$PROFILE.mobileprovision" ] || { echo "downloaded profile is empty" >&2; exit 1; }
-echo "PROVISION-OK $DIR/$PROFILE.mobileprovision"
+asc_install_profile "$PID" "$PROFILE"
 echo "If this is a first setup: create the app in App Store Connect (bundle id $BUNDLE_ID)."
 echo "If iCloud is not yet assigned to the App ID: see deploy/ICLOUD.md. Then ./bin/release.sh"

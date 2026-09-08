@@ -48,3 +48,35 @@ App Store build, deploy the schema to Production in
 <https://icloud.developer.apple.com/dashboard> (TestFlight builds use the
 Production environment, so this matters for the first TestFlight build
 after sync ships).
+
+## Creating the schema in Development
+
+Only a development-signed build talks to the Development environment,
+and only a save creates record types. The Debug configuration signs for
+development with `tend-dev`, a profile `ios/bin/dev-profile.sh` makes
+the same account-free way as the App Store one (this Mac registered as a
+device, the Apple Development certificate already in the keychain), and
+carries `Tend-Debug.entitlements` (development push, Development
+container environment). Release is untouched.
+
+To create every record type at once, on this Mac signed in to iCloud:
+
+```sh
+cd ~/code/personal-crm/ios && ./bin/dev-profile.sh   # once per machine
+TEST_RUNNER_TEND_SCHEMA_PROBE=1 xcodebuild test -project Tend.xcodeproj -scheme Tend \
+  -configuration Debug -destination 'id=<this Mac's provisioning UDID>' \
+  -only-testing:TendTests/SchemaProbeTests
+```
+
+xcodebuild launches the Debug app on the Mac as the test host; the app
+writes one row of every model (`Services/SchemaProbe.swift`, Debug
+only), waits for CloudKit's export, deletes the rows, and the test
+prints `SCHEMA PROBE OK` with the probe's log. The Mac's provisioning
+UDID is in `system_profiler SPHardwareDataType`. The same probe runs
+from a Debug build launched with `-schemaProbe 1`. If the app reports
+`CKAccountStatus` 3 (no account), the Mac is not signed in to iCloud as
+far as iOS apps on it are concerned; sign in and run it again.
+
+Then in the dashboard: Schema → Deploy Schema Changes → to Production.
+`xcrun cktool` can do the same with a management token from the
+dashboard (Tokens → Management Token → `xcrun cktool save-token`).

@@ -23,12 +23,8 @@ targets:
     # container. The App ID must carry the iCloud and Push capabilities and
     # this container (bin/provision.sh enables the capabilities; the
     # container itself is a developer-portal step — see deploy/ICLOUD.md).
-    entitlements:
-      path: Tend.entitlements
-      properties:
-        com.apple.developer.icloud-services: [CloudKit]
-        com.apple.developer.icloud-container-identifiers: [iCloud.com.kevinzhang.tend]
-        aps-environment: production
+    # The entitlements are two checked-in files, one per configuration,
+    # because the push and CloudKit environments differ between them.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kevinzhang.tend
@@ -36,8 +32,6 @@ targets:
         # via the ASC API (bin/provision.sh). Simulator builds ignore these.
         CODE_SIGN_STYLE: Manual
         DEVELOPMENT_TEAM: XF283F7SB6
-        CODE_SIGN_IDENTITY[sdk=iphoneos*]: "iPhone Distribution: Kevin Zhang (XF283F7SB6)"
-        PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]: tend-appstore
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         # No networking at all -> standard encryption exemption; skips the
@@ -54,6 +48,20 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 0.1.0
         SWIFT_VERSION: 5
+      # Debug signs for development (bin/dev-profile.sh makes tend-dev,
+      # account-free, with this Mac in it) and carries the development
+      # entitlements, so a Debug run on a device or on this Mac talks to
+      # CloudKit's Development environment — the only place the schema
+      # can be created. Release keeps the App Store identity untouched.
+      configs:
+        Debug:
+          CODE_SIGN_IDENTITY[sdk=iphoneos*]: "Apple Development"
+          PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]: tend-dev
+          CODE_SIGN_ENTITLEMENTS: Tend-Debug.entitlements
+        Release:
+          CODE_SIGN_IDENTITY[sdk=iphoneos*]: "iPhone Distribution: Kevin Zhang (XF283F7SB6)"
+          PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]: tend-appstore
+          CODE_SIGN_ENTITLEMENTS: Tend-Release.entitlements
   # Tests cover the pure layer only (Logic/): cadence, digest, suggestions,
   # links, backup. The shell is verified by building and running.
   TendTests:

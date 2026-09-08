@@ -12,6 +12,9 @@ enum Maintenance {
         Store.migrateLegacy(into: container)
         Groups.ensureSeeded(context: context)
         adoptAudioFiles(context: context)
+        #if DEBUG
+        SchemaProbe.runIfAsked(context: context)
+        #endif
     }
 
     /// Recordings from before they lived in the store: read into it, the
