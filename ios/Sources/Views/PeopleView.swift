@@ -74,12 +74,12 @@ struct PeopleView: View {
                         }
                         .listStyle(.plain)
                         .scrollContentBackground(.hidden)
-                        .contentMargins(.bottom, 90, for: .scrollContent)
+                        .contentMargins(.bottom, selecting ? 8 : 90, for: .scrollContent)
                         .environment(\.editMode, .constant(selecting ? .active : .inactive))
                     }
                 }
             }
-            .navigationTitle("People")
+            .navigationTitle(selecting ? selectionTitle : "People")
             .searchable(text: $search, prompt: "Names, #tags, lives:LIC, works:…")
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
@@ -121,7 +121,7 @@ struct PeopleView: View {
                     selectedId: selectedTag, anyLabel: "Any tag",
                     onPick: { selectedTag = $0 })
             }
-            .safeAreaInset(edge: .bottom) {
+            .safeAreaBar(edge: .bottom) {
                 if selecting { bulkBar }
             }
             .overlay(alignment: .bottomTrailing) {
@@ -248,7 +248,7 @@ struct PeopleView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 4)
-            .padding(.bottom, 100)
+            .padding(.bottom, selecting ? 8 : 100)
         }
     }
 
@@ -475,89 +475,106 @@ struct PeopleView: View {
         .padding(.bottom, 18)
     }
 
+    /// Select mode names what is ticked, the way Mail and Photos do.
+    private var selectionTitle: String {
+        selected.isEmpty ? "Select People" : "\(selected.count) Selected"
+    }
+
     /// The people ticked, in the order shown.
     private var chosen: [Friend] {
         friends.filter { selected.contains($0.id) }
     }
 
     private var bulkBar: some View {
-        let n = selected.count
         let people = chosen
-        return GlassEffectContainer(spacing: 10) {
-            HStack(spacing: 10) {
-                // One entry per group: ticked when everyone chosen is in it;
-                // tapping adds the rest, or removes them all if all are in.
-                Menu {
-                    ForEach(groups) { g in
-                        let allIn = !people.isEmpty && people.allSatisfy { $0.isIn(g) }
-                        Button { toggle(people, in: g) } label: {
-                            Label(g.name, systemImage: allIn ? "checkmark" : "folder")
+        let any = !people.isEmpty
+        let starred = any && people.allSatisfy(\.starred)
+        let archived = any && people.allSatisfy(\.archived)
+        return GlassEffectContainer(spacing: 12) {
+            HStack(alignment: .top, spacing: 8) {
+                bulkAction("Groups") {
+                    // One entry per group: ticked when everyone chosen is in it;
+                    // tapping adds the rest, or removes them all if all are in.
+                    Menu {
+                        ForEach(groups) { g in
+                            let allIn = any && people.allSatisfy { $0.isIn(g) }
+                            Button { toggle(people, in: g) } label: {
+                                Label(g.name, systemImage: allIn ? "checkmark" : "folder")
+                            }
                         }
+                    } label: {
+                        bulkIcon("folder", .white)
                     }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "folder")
-                        Text(n == 0 ? "Groups" : "Groups · \(n)")
+                    .glassButton(prominent: true, shape: .circle)
+                    .disabled(!any)
+                }
+                bulkAction(starred ? "Unstar" : "Star") {
+                    Button {
+                        star(people, !starred)
+                        selected = []
+                        selecting = false
+                    } label: {
+                        bulkIcon(starred ? "star.slash" : "star", .primary)
                     }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 3)
+                    .glassButton(shape: .circle)
+                    .disabled(!any)
                 }
-                .glassButton(prominent: true)
-                .disabled(n == 0)
-                Button { star(people, !people.allSatisfy(\.starred)); selected = []; selecting = false } label: {
-                    Image(systemName: people.allSatisfy(\.starred) && !people.isEmpty ? "star.slash" : "star")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.primary)
-                        .padding(.horizontal, 2)
-                        .padding(.vertical, 3)
-                }
-                .glassButton()
-                .disabled(n == 0)
-                Button {
-                    let all = chosen
-                    archive(all, !(all.allSatisfy(\.archived)))
-                    selected = []
-                    selecting = false
-                } label: {
-                    // A Label under the glass style keeps the tint; a stack takes the colour it is given.
-                    HStack(spacing: 6) {
-                        Image(systemName: "archivebox")
-                        Text(filter == .archived ? "Unarchive" : "Archive")
+                bulkAction(archived ? "Unarchive" : "Archive") {
+                    Button {
+                        archive(people, !archived)
+                        selected = []
+                        selecting = false
+                    } label: {
+                        bulkIcon("archivebox", .primary)
                     }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.primary)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 3)
+                    .glassButton(shape: .circle)
+                    .disabled(!any)
                 }
-                .glassButton()
-                .disabled(n == 0)
-                Button { tagPrompt = true } label: {
-                    Image(systemName: "number")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.primary)
-                        .padding(.horizontal, 2)
-                        .padding(.vertical, 3)
-                }
-                .glassButton()
-                .disabled(n == 0)
-                Button(role: .destructive) { confirmBulkDelete = true } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "trash")
-                        Text("Delete")
+                bulkAction("Tag") {
+                    Button { tagPrompt = true } label: {
+                        bulkIcon("number", .primary)
                     }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.red)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 3)
+                    .glassButton(shape: .circle)
+                    .disabled(!any)
                 }
-                .glassButton()
-                .disabled(n == 0)
+                bulkAction("Delete", destructive: true) {
+                    Button(role: .destructive) { confirmBulkDelete = true } label: {
+                        bulkIcon("trash", .red)
+                    }
+                    .glassButton(shape: .circle)
+                    .disabled(!any)
+                }
             }
         }
         .padding(.horizontal, 16)
+        .padding(.top, 10)
         .padding(.bottom, 8)
+    }
+
+    /// Five actions only fit across a phone as circles, so the name sits
+    /// under the glass rather than inside it, where it has the whole
+    /// column to itself and never wraps. The count is in the title.
+    private func bulkAction<Control: View>(
+        _ title: String, destructive: Bool = false, @ViewBuilder control: () -> Control
+    ) -> some View {
+        VStack(spacing: 5) {
+            control().accessibilityLabel(title)
+            Text(title)
+                .font(.caption2.weight(.medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(destructive ? Color.red : Color.secondary)
+                .opacity(selected.isEmpty ? 0.4 : 1)
+                .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func bulkIcon(_ icon: String, _ colour: Color) -> some View {
+        Image(systemName: icon)
+            .font(.title3.weight(.semibold))
+            .foregroundStyle(colour)
+            .frame(width: 26, height: 26)
     }
 
     // MARK: actions
