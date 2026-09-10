@@ -100,6 +100,11 @@ struct PeopleView: View {
                     .disabled(friends.isEmpty)
                 }
             }
+            // Ticking the last person off says the same thing as Done.
+            // Entering select mode with nobody ticked yet does not.
+            .onChange(of: selected) { before, after in
+                if selecting, !before.isEmpty, after.isEmpty { selecting = false }
+            }
             .sheet(isPresented: $pickingGroup, onDismiss: {
                 if openManagerAfterPick {
                     openManagerAfterPick = false
