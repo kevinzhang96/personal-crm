@@ -490,96 +490,80 @@ struct PeopleView: View {
         friends.filter { selected.contains($0.id) }
     }
 
+    /// The actions for the ticked people. Five of them only fit across a
+    /// phone as icons, so each name sits under its icon where it has the
+    /// whole column and never wraps, and the row rides its own glass so
+    /// the list passing beneath it stays out of the way.
     private var bulkBar: some View {
         let people = chosen
         let any = !people.isEmpty
         let starred = any && people.allSatisfy(\.starred)
         let archived = any && people.allSatisfy(\.archived)
-        return GlassEffectContainer(spacing: 12) {
-            HStack(alignment: .top, spacing: 8) {
-                bulkAction("Groups") {
-                    // One entry per group: ticked when everyone chosen is in it;
-                    // tapping adds the rest, or removes them all if all are in.
-                    Menu {
-                        ForEach(groups) { g in
-                            let allIn = any && people.allSatisfy { $0.isIn(g) }
-                            Button { toggle(people, in: g) } label: {
-                                Label(g.name, systemImage: allIn ? "checkmark" : "folder")
-                            }
-                        }
-                    } label: {
-                        bulkIcon("folder", .white)
+        return HStack(spacing: 2) {
+            // One entry per group: ticked when everyone chosen is in it;
+            // tapping adds the rest, or removes them all if all are in.
+            Menu {
+                ForEach(groups) { g in
+                    let allIn = any && people.allSatisfy { $0.isIn(g) }
+                    Button { toggle(people, in: g) } label: {
+                        Label(g.name, systemImage: allIn ? "checkmark" : "folder")
                     }
-                    .glassButton(prominent: true, shape: .circle)
-                    .disabled(!any)
                 }
-                bulkAction(starred ? "Unstar" : "Star") {
-                    Button {
-                        star(people, !starred)
-                        selected = []
-                        selecting = false
-                    } label: {
-                        bulkIcon(starred ? "star.slash" : "star", .primary)
-                    }
-                    .glassButton(shape: .circle)
-                    .disabled(!any)
-                }
-                bulkAction(archived ? "Unarchive" : "Archive") {
-                    Button {
-                        archive(people, !archived)
-                        selected = []
-                        selecting = false
-                    } label: {
-                        bulkIcon("archivebox", .primary)
-                    }
-                    .glassButton(shape: .circle)
-                    .disabled(!any)
-                }
-                bulkAction("Tag") {
-                    Button { tagPrompt = true } label: {
-                        bulkIcon("number", .primary)
-                    }
-                    .glassButton(shape: .circle)
-                    .disabled(!any)
-                }
-                bulkAction("Delete", destructive: true) {
-                    Button(role: .destructive) { confirmBulkDelete = true } label: {
-                        bulkIcon("trash", .red)
-                    }
-                    .glassButton(shape: .circle)
-                    .disabled(!any)
-                }
+            } label: {
+                bulkFace("Groups", icon: "folder", tint: .primary, filled: true)
             }
+            .disabled(!any)
+            .accessibilityLabel("Groups")
+            bulkButton(starred ? "Unstar" : "Star", icon: starred ? "star.slash" : "star", enabled: any) {
+                star(people, !starred)
+                done()
+            }
+            bulkButton(archived ? "Unarchive" : "Archive", icon: "archivebox", enabled: any) {
+                archive(people, !archived)
+                done()
+            }
+            bulkButton("Tag", icon: "number", enabled: any) { tagPrompt = true }
+            bulkButton("Delete", icon: "trash", tint: .red, enabled: any) { confirmBulkDelete = true }
         }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 8)
+        .glassEffect(.regular, in: .rect(cornerRadius: 26))
         .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
+        .padding(.bottom, 6)
     }
 
-    /// Five actions only fit across a phone as circles, so the name sits
-    /// under the glass rather than inside it, where it has the whole
-    /// column to itself and never wraps. The count is in the title.
-    private func bulkAction<Control: View>(
-        _ title: String, destructive: Bool = false, @ViewBuilder control: () -> Control
-    ) -> some View {
-        VStack(spacing: 5) {
-            control().accessibilityLabel(title)
+    private func bulkButton(_ title: String, icon: String, tint: Color = .primary, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            bulkFace(title, icon: icon, tint: tint, filled: false)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityLabel(title)
+    }
+
+    /// An icon over its name, in a column that shares the width evenly
+    /// with the others and is tall enough to tap without aiming.
+    private func bulkFace(_ title: String, icon: String, tint: Color, filled: Bool) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(filled ? Color.white : tint)
+                .frame(width: 34, height: 34)
+                .background(filled ? Theme.accent : .clear, in: .circle)
             Text(title)
                 .font(.caption2.weight(.medium))
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .foregroundStyle(destructive ? Color.red : Color.secondary)
-                .opacity(selected.isEmpty ? 0.4 : 1)
-                .accessibilityHidden(true)
+                .minimumScaleFactor(0.75)
+                .foregroundStyle(tint == .red ? Color.red : Color.secondary)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .contentShape(.rect)
     }
 
-    private func bulkIcon(_ icon: String, _ colour: Color) -> some View {
-        Image(systemName: icon)
-            .font(.title3.weight(.semibold))
-            .foregroundStyle(colour)
-            .frame(width: 26, height: 26)
+    /// Leaving select mode, the way finishing an action does.
+    private func done() {
+        selected = []
+        selecting = false
     }
 
     // MARK: actions
